@@ -11,6 +11,7 @@ import { createSearchAppInit } from "@js/invenio_search_ui";
 import {
   SearchAppFacets,
   SearchAppResultsPane,
+  InvenioSearchPagination,
 } from "@js/invenio_search_ui/components";
 import { i18next } from "@translations/invenio_app_rdm/i18next";
 import _get from "lodash/get";
@@ -21,19 +22,28 @@ import { GridResponsiveSidebarColumn } from "react-invenio-forms";
 import {
   BucketAggregation,
   Count,
-  Pagination,
   ResultsList,
-  ResultsPerPage,
   SearchBar,
   Sort,
   withState,
 } from "react-searchkit";
-import RequestTypeLabel from "@js/invenio_requests/request/RequestTypeLabel";
+import { parametrize } from "react-overridable";
 import {
   LabelTypeInvitation,
   LabelTypeSubmission,
+  LabelStatusSubmit,
+  LabelStatusDelete,
+  LabelStatusAccept,
+  LabelStatusDecline,
+  LabelStatusCancel,
+  LabelStatusExpire,
 } from "@js/invenio_requests/request";
-
+import {
+  RequestAcceptButton,
+  RequestCancelButton,
+  RequestDeclineButton,
+  RequestCancelButtonModal,
+} from "@js/invenio_requests/components/Buttons";
 import {
   Button,
   Card,
@@ -41,7 +51,6 @@ import {
   Grid,
   Header,
   Icon,
-  Item,
   Segment,
 } from "semantic-ui-react";
 import {
@@ -51,6 +60,8 @@ import {
   SearchHelpLinks,
 } from "../search/components";
 import { timestampToRelativeTime } from "../utils";
+import { ComputerTabletRequestsItem } from "./requests_items/ComputerTabletRequestsItem";
+import { MobileRequestsItem } from "./requests_items/MobileRequestsItem";
 
 export const RequestsResults = ({
   sortOptions,
@@ -111,32 +122,16 @@ export const RequestsResults = ({
             </Segment>
           </Grid.Column>
         </Grid.Row>
-        <Grid.Row verticalAlign="middle">
-          <Grid.Column width={4} />
-          <Grid.Column width={8} textAlign="center">
-            <Pagination
-              options={{
-                size: "mini",
-                showFirst: false,
-                showLast: false,
-              }}
-            />
-          </Grid.Column>
-          <Grid.Column textAlign="right" width={4}>
-            <ResultsPerPage
-              values={paginationOptions.resultsPerPage}
-              label={(cmp) => (
-                <>
-                  {" "}
-                  {cmp} {i18next.t("results per page")}
-                </>
-              )}
-            />
-          </Grid.Column>
-        </Grid.Row>
+        <InvenioSearchPagination paginationOptions={paginationOptions} />
       </Grid>
     )
   );
+};
+
+RequestsResults.propTypes = {
+  sortOptions: PropTypes.array.isRequired,
+  paginationOptions: PropTypes.object.isRequired,
+  currentResultsState: PropTypes.object.isRequired,
 };
 
 export function RequestsResultsGridItemTemplate({ result, index }) {
@@ -145,19 +140,21 @@ export function RequestsResultsGridItemTemplate({ result, index }) {
       <Card.Content>
         <Card.Header>{result.metadata.title}</Card.Header>
         <Card.Description>
-          <div
-            dangerouslySetInnerHTML={{ __html: result.metadata.description }}
-          />
+          <div dangerouslySetInnerHTML={{ __html: result.metadata.description }} />
         </Card.Description>
       </Card.Content>
     </Card>
   );
 }
 
-export function RequestsResultsItemTemplate({ result, index }) {
+RequestsResultsGridItemTemplate.propTypes = {
+  result: PropTypes.object.isRequired,
+  index: PropTypes.string.isRequired,
+};
+
+export function RequestsResultsItemTemplateDashboard({ result, index }) {
   const createdDate = new Date(result.created);
   const differenceInDays = timestampToRelativeTime(createdDate.toISOString());
-
   const createdBy = result.created_by;
   const isCreatorUser = "user" in createdBy;
   const isCreatorCommunity = "community" in createdBy;
@@ -168,82 +165,70 @@ export function RequestsResultsItemTemplate({ result, index }) {
       result.expanded?.created_by.username ||
       createdBy.user;
   } else if (isCreatorCommunity) {
-    creatorName =
-      result.expanded?.created_by.metadata?.title || createdBy.community;
+    creatorName = result.expanded?.created_by.metadata?.title || createdBy.community;
   }
+  const ComputerTabletRequestsItemWithState = withState(ComputerTabletRequestsItem);
+  const MobileRequestsItemWithState = withState(MobileRequestsItem);
   return (
-    <Item key={index} className="community-item">
-      <Item.Content>
-        <Item.Header>
-          {result.type && <RequestTypeLabel type={result.type} />}
-          <a className="header-link" href={`/me/requests/${result.id}`}>
-            {result.title}
-          </a>
-        </Item.Header>
-
-        <Item.Meta>
-          <div className="inline-computer rel-mr-1 rel-mt-1 rel-mb-1">
-            {i18next.t(`opened {{difference}} by {{creator}}`, {
-              difference: differenceInDays,
-              creator: creatorName,
-            })}
-          </div>
-
-          {result.receiver.community &&
-            result.expanded?.receiver.metadata.title && (
-              <div className="inline-computer">
-                <Icon className="default-margin" name="users" />
-                <span className="ml-5">
-                  {result.expanded?.receiver.metadata.title}
-                </span>
-              </div>
-            )}
-        </Item.Meta>
-      </Item.Content>
-    </Item>
+    <>
+      <ComputerTabletRequestsItemWithState
+        result={result}
+        index={index}
+        differenceInDays={differenceInDays}
+        isCreatorCommunity={isCreatorCommunity}
+        creatorName={creatorName}
+      />
+      <MobileRequestsItemWithState
+        result={result}
+        index={index}
+        differenceInDays={differenceInDays}
+        isCreatorCommunity={isCreatorCommunity}
+        creatorName={creatorName}
+      />
+    </>
   );
 }
+
+RequestsResultsItemTemplateDashboard.propTypes = {
+  result: PropTypes.object.isRequired,
+  index: PropTypes.string,
+};
+
+RequestsResultsItemTemplateDashboard.defaultProps = {
+  index: null,
+};
+
 // FIXME: Keeping ResultsGrid.item and SearchBar.element because otherwise
 // these components in RDM result broken.
 
 export const RDMRecordResultsGridItem = ({ result, index }) => {
-  const description_stripped = _get(
-    result,
-    "ui.description_stripped",
-    "No description"
-  );
+  const descriptionStripped = _get(result, "ui.description_stripped", "No description");
   return (
     <Card fluid key={index} href={`/me/requests/${result.id}`}>
       <Card.Content>
         <Card.Header>{result.metadata.title}</Card.Header>
         <Card.Description>
-          {_truncate(description_stripped, { length: 200 })}
+          {_truncate(descriptionStripped, { length: 200 })}
         </Card.Description>
       </Card.Content>
     </Card>
   );
 };
 
+RDMRecordResultsGridItem.propTypes = {
+  result: PropTypes.object.isRequired,
+  index: PropTypes.string.isRequired,
+};
+
 export class RequestStatusFilterComponent extends Component {
   constructor(props) {
     super(props);
-
-    this.state = {
-      open: undefined,
-    };
-  }
-
-  componentDidMount() {
     const { currentQueryState } = this.props;
     const userSelectionFilters = currentQueryState.filters;
-    const openFilter = userSelectionFilters.find((obj) =>
-      obj.includes("is_open")
-    );
-    if (openFilter) {
-      this.setState({
-        open: openFilter.includes("true"),
-      });
-    }
+    const openFilter = userSelectionFilters.find((obj) => obj.includes("is_open"));
+    this.state = {
+      open: openFilter ? openFilter.includes("true") : undefined,
+    };
   }
 
   /**
@@ -305,7 +290,8 @@ export const RequestStatusFilter = withState(RequestStatusFilterComponent);
 
 export const RDMRequestsSearchLayout = (props) => {
   const [sidebarVisible, setSidebarVisible] = React.useState(false);
-
+  const { config } = props;
+  console.log("HEY");
   return (
     <Container>
       <Grid>
@@ -332,7 +318,7 @@ export const RDMRequestsSearchLayout = (props) => {
           </Grid.Column>
 
           <Grid.Column mobile={16} tablet={11} computer={9}>
-            <SearchBar placeholder={i18next.t("Search requests...")} />
+            <SearchBar placeholder={i18next.t("Search in my requests...")} />
           </Grid.Column>
         </Grid.Row>
 
@@ -341,15 +327,20 @@ export const RDMRequestsSearchLayout = (props) => {
             width={4}
             open={sidebarVisible}
             onHideClick={() => setSidebarVisible(false)}
-            children={<SearchAppFacets aggs={props.config.aggs} />}
-          />
+          >
+            <SearchAppFacets aggs={config.aggs} />
+          </GridResponsiveSidebarColumn>
           <Grid.Column mobile={16} tablet={16} computer={12}>
-            <SearchAppResultsPane layoutOptions={props.config.layoutOptions} />
+            <SearchAppResultsPane layoutOptions={config.layoutOptions} />
           </Grid.Column>
         </Grid.Row>
       </Grid>
     </Container>
   );
+};
+
+RDMRequestsSearchLayout.propTypes = {
+  config: PropTypes.object.isRequired,
 };
 
 export const RequestsFacets = ({ aggs }) => {
@@ -373,14 +364,16 @@ export const RequestsFacets = ({ aggs }) => {
   );
 };
 
+RequestsFacets.propTypes = {
+  aggs: PropTypes.array.isRequired,
+};
+
 export const RDMRequestsEmptyResults = (props) => {
-  const { queryString, userSelectionFilters } = props;
-  const is_open = userSelectionFilters.some(
+  const { queryString, userSelectionFilters, updateQueryState } = props;
+  const isOpen = userSelectionFilters.some(
     (obj) => obj.includes("is_open") && obj.includes("true")
   );
-  const filtersToNotReset = userSelectionFilters.find((obj) =>
-    obj.includes("is_open")
-  );
+  const filtersToNotReset = userSelectionFilters.find((obj) => obj.includes("is_open"));
   const elementsToReset = {
     queryString: "",
     page: 1,
@@ -389,14 +382,12 @@ export const RDMRequestsEmptyResults = (props) => {
 
   const AllDone = () => {
     return (
-      <>
-        <Header as="h1" icon>
-          {i18next.t("All done!")}
-          <Header.Subheader>
-            {i18next.t("You've caught up with all open requests.")}
-          </Header.Subheader>
-        </Header>
-      </>
+      <Header as="h1" icon>
+        {i18next.t("All done!")}
+        <Header.Subheader>
+          {i18next.t("You've caught up with all open requests.")}
+        </Header.Subheader>
+      </Header>
     );
   };
 
@@ -408,10 +399,7 @@ export const RDMRequestsEmptyResults = (props) => {
           {i18next.t("No requests found!")}
         </Header>
         {queryString && (
-          <Button
-            primary
-            onClick={() => props.updateQueryState(elementsToReset)}
-          >
+          <Button primary onClick={() => updateQueryState(elementsToReset)}>
             {i18next.t("Reset search")}
           </Button>
         )}
@@ -419,36 +407,101 @@ export const RDMRequestsEmptyResults = (props) => {
     );
   };
 
-  const allRequestsDone = is_open && !queryString;
+  const allRequestsDone = isOpen && !queryString;
   return (
-    <>
-      <Segment placeholder textAlign="center">
-        {allRequestsDone ? <AllDone /> : <NoResults />}
-      </Segment>
-    </>
+    <Segment placeholder textAlign="center">
+      {allRequestsDone ? <AllDone /> : <NoResults />}
+    </Segment>
   );
 };
 
-export const RDMRequestsEmptyResultsWithState = withState(
-  RDMRequestsEmptyResults
+RDMRequestsEmptyResults.propTypes = {
+  queryString: PropTypes.string.isRequired,
+  updateQueryState: PropTypes.func.isRequired,
+  userSelectionFilters: PropTypes.array.isRequired,
+};
+
+export const RDMRequestsEmptyResultsWithState = withState(RDMRequestsEmptyResults);
+
+const RequestAcceptButtonWithConfig = parametrize(RequestAcceptButton, {
+  size: "mini",
+  className: "ml-5",
+});
+
+const RequestDeclineButtonWithConfig = parametrize(RequestDeclineButton, {
+  size: "mini",
+  className: "ml-5",
+});
+
+const RequestCancelButtonWithConfig = parametrize(RequestCancelButton, {
+  size: "mini",
+  className: "ml-5",
+});
+
+const RequestAcceptButtonMobileWithConfig = parametrize(RequestAcceptButton, {
+  size: "mini",
+  className: "mt-10 fluid-responsive",
+});
+
+const RequestDeclineButtonMobileWithConfig = parametrize(RequestDeclineButton, {
+  size: "mini",
+  className: "mt-10 fluid-responsive",
+});
+
+const RequestCancelButtonMobileWithConfig = parametrize(RequestCancelButton, {
+  size: "mini",
+  className: "mt-10 fluid-responsive",
+});
+
+const CommunitySubmission = () => (
+  <LabelTypeSubmission className="rel-mr-1 primary" size="small" />
 );
+
+const CommunityInvitation = () => (
+  <LabelTypeInvitation className="rel-mr-1 primary" size="small" />
+);
+
+const Submitted = () => <LabelStatusSubmit className="rel-mr-1 primary" size="small" />;
+
+const Deleted = () => <LabelStatusDelete className="rel-mr-1 negative" size="small" />;
+
+const Accepted = () => <LabelStatusAccept className="rel-mr-1 positive" size="small" />;
+
+const Declined = () => (
+  <LabelStatusDecline className="rel-mr-1 negative" size="small" />
+);
+
+const Cancelled = () => <LabelStatusCancel className="rel-mr-1 neutral" size="small" />;
+
+const Expired = () => <LabelStatusExpire className="rel-mr-1 expired" size="small" />;
 
 export const defaultComponents = {
   "BucketAggregation.element": RDMBucketAggregationElement,
   "BucketAggregationValues.element": RDMRecordFacetsValues,
   "SearchApp.facets": RequestsFacets,
-  "ResultsList.item": RequestsResultsItemTemplate,
+  "ResultsList.item": RequestsResultsItemTemplateDashboard,
   "ResultsGrid.item": RequestsResultsGridItemTemplate,
   "SearchApp.layout": RDMRequestsSearchLayout,
   "SearchApp.results": RequestsResults,
   "SearchBar.element": RDMRecordSearchBarElement,
   "EmptyResults.element": RDMRequestsEmptyResultsWithState,
-  "RequestTypeLabel.layout.community-submission": () => (
-    <LabelTypeSubmission className="rel-mr-1" size="large" />
-  ),
-  "RequestTypeLabel.layout.community-invitation": () => (
-    <LabelTypeInvitation className="rel-mr-1" size="large" />
-  ),
+  "RequestTypeLabel.layout.community-submission": CommunitySubmission,
+  "RequestTypeLabel.layout.community-invitation": CommunityInvitation,
+  "RequestStatusLabel.layout.submitted": Submitted,
+  "RequestStatusLabel.layout.deleted": Deleted,
+  "RequestStatusLabel.layout.accepted": Accepted,
+  "RequestStatusLabel.layout.declined": Declined,
+  "RequestStatusLabel.layout.cancelled": Cancelled,
+  "RequestStatusLabel.layout.expired": Expired,
+  "RequestActionModalTrigger.accept.computer-tablet": RequestAcceptButtonWithConfig,
+  "RequestActionModalTrigger.decline.computer-tablet": RequestDeclineButtonWithConfig,
+  "RequestActionModalTrigger.cancel.computer-tablet": RequestCancelButtonWithConfig,
+  "RequestActionModalTrigger.accept.mobile": RequestAcceptButtonMobileWithConfig,
+  "RequestActionModalTrigger.decline.mobile": RequestDeclineButtonMobileWithConfig,
+  "RequestActionModalTrigger.cancel.mobile": RequestCancelButtonMobileWithConfig,
+  "RequestActionButton.cancel": RequestCancelButtonModal,
+  "RequestActionButton.decline": RequestDeclineButton,
+  "RequestActionButton.accept": RequestAcceptButton,
 };
 
 createSearchAppInit(defaultComponents);

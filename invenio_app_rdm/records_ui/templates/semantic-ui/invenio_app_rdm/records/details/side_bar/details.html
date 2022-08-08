@@ -8,7 +8,7 @@
   it under the terms of the MIT License; see LICENSE file for more details.
 #}
 
-{%- from "invenio_app_rdm/records/macros/detail.html" import list_formats, list_languages,
+{%- from "invenio_app_rdm/records/macros/detail.html" import list_formats, list_languages, 
   list_sizes, show_dates, show_detail %}
 
   {%- set id_doi = record.pids.get('doi', {}).get('identifier') %}

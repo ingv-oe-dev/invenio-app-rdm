@@ -10,19 +10,14 @@
 import {
   SearchAppFacets,
   SearchAppResultsPane,
+  InvenioSearchPagination,
 } from "@js/invenio_search_ui/components";
 import { i18next } from "@translations/invenio_app_rdm/i18next";
-import React, { Component } from "react";
-import {
-  Count,
-  Pagination,
-  ResultsList,
-  ResultsPerPage,
-  SearchBar,
-  Sort,
-} from "react-searchkit";
+import React from "react";
+import { Count, ResultsList, SearchBar, Sort } from "react-searchkit";
 import { GridResponsiveSidebarColumn } from "react-invenio-forms";
 import { Grid, Segment, Button } from "semantic-ui-react";
+import PropTypes from "prop-types";
 
 import Overridable from "react-overridable";
 
@@ -50,11 +45,7 @@ export function DashboardResultView(props) {
                         )}
                       />
                     </Grid.Column>
-                    <Grid.Column
-                      width={12}
-                      textAlign="right"
-                      className="padding-r-5"
-                    >
+                    <Grid.Column width={12} textAlign="right" className="padding-r-5">
                       {sortOptions && (
                         <Sort
                           values={sortOptions}
@@ -80,42 +71,27 @@ export function DashboardResultView(props) {
           </Grid.Column>
         </Grid.Row>
         <Overridable id="DashboardResultView.resultFooter" {...props}>
-          <Grid.Row verticalAlign="middle">
-            <Grid.Column width={4} />
-            <Grid.Column width={8} textAlign="center" floated="right">
-              <Pagination
-                options={{
-                  size: "mini",
-                  showFirst: false,
-                  showLast: false,
-                }}
-              />
-            </Grid.Column>
-            <Grid.Column textAlign="right" width={4}>
-              <ResultsPerPage
-                values={paginationOptions.resultsPerPage}
-                label={(cmp) => (
-                  <>
-                    {" "}
-                    {cmp} {i18next.t("results per page")}
-                  </>
-                )}
-              />
-            </Grid.Column>
-          </Grid.Row>
+          <InvenioSearchPagination paginationOptions={paginationOptions} />
         </Overridable>
       </Grid>
     )
   );
 }
 
+DashboardResultView.propTypes = {
+  sortOptions: PropTypes.array.isRequired,
+  paginationOptions: PropTypes.object.isRequired,
+  currentResultsState: PropTypes.object.isRequired,
+};
+
 export const DashboardSearchLayoutHOC = ({
   searchBarPlaceholder = "",
   newBtn = () => null,
-  ...props
 }) => {
   const DashboardUploadsSearchLayout = (props) => {
     const [sidebarVisible, setSidebarVisible] = React.useState(false);
+    const { config } = props;
+    console.log("inner props", props);
 
     return (
       <Grid>
@@ -128,11 +104,11 @@ export const DashboardSearchLayoutHOC = ({
           />
         </Grid.Column>
 
-        <Grid.Column mobile={14} tablet={11} computer={8} floated="right">
+        <Grid.Column mobile={14} tablet={10} computer={8} floated="right">
           <SearchBar placeholder={searchBarPlaceholder} />
         </Grid.Column>
 
-        <Grid.Column mobile={16} tablet={4} computer={4} align="right">
+        <Grid.Column mobile={16} tablet={5} computer={4} align="right">
           {newBtn}
         </Grid.Column>
 
@@ -141,14 +117,20 @@ export const DashboardSearchLayoutHOC = ({
             width={4}
             open={sidebarVisible}
             onHideClick={() => setSidebarVisible(false)}
-            children={<SearchAppFacets aggs={props.config.aggs} />}
-          />
+          >
+            <SearchAppFacets aggs={config.aggs} />
+          </GridResponsiveSidebarColumn>
           <Grid.Column mobile={16} tablet={16} computer={12}>
-            <SearchAppResultsPane layoutOptions={props.config.layoutOptions} />
+            <SearchAppResultsPane layoutOptions={config.layoutOptions} />
           </Grid.Column>
         </Grid.Row>
       </Grid>
     );
   };
+
+  DashboardUploadsSearchLayout.propTypes = {
+    config: PropTypes.object.isRequired,
+  };
+
   return DashboardUploadsSearchLayout;
 };
