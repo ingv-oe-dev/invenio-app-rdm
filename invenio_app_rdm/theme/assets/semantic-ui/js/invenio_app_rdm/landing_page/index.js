@@ -15,6 +15,8 @@ import { RecordCitationField } from "./RecordCitationField";
 import { ExportDropdown } from "./ExportDropdown";
 import { Plotly } from "./Plotly";
 import { LeafletMap } from "./LeafletMap";
+import { LeafletLocations } from "./LeafletLocations";
+
 
 const recordManagementAppDiv = document.getElementById("recordManagement");
 const recordManagementMobile = document.getElementById("recordManagementMobile");
@@ -24,6 +26,8 @@ const recordCitationAppDiv = document.getElementById("recordCitation");
 const recordExportDownloadDiv = document.getElementById("recordExportDownload");
 const recordPlotlyDiv = document.getElementById("recordPlotly");
 const recordLeafletDiv = document.getElementById("recordLeaflet");
+const leafletLocationsDiv = document.getElementById("leaflet-locations");
+
 
 if (recordManagementAppDiv) {
   renderRecordManagement(recordManagementAppDiv);
@@ -87,5 +91,14 @@ if (recordLeafletDiv) {
       wmsresource={JSON.parse(recordLeafletDiv.dataset.wmsresource)}
     />,
     recordLeafletDiv
+  );
+}
+
+if (leafletLocationsDiv) {
+  ReactDOM.render(
+    <LeafletLocations
+      locations={JSON.parse(leafletLocationsDiv.dataset.locations)}
+    />,
+    leafletLocationsDiv
   );
 }
