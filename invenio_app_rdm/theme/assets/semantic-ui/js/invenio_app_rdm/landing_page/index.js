@@ -76,6 +76,8 @@ if (recordPlotlyDiv) {
   ReactDOM.render(
     <Plotly
       chartresource={JSON.parse(recordPlotlyDiv.dataset.chartresource)}
+      tsdtoken={recordPlotlyDiv.dataset.tsdtoken}
+      tsdsrvurl={recordPlotlyDiv.dataset.tsdsrvurl}
     />,
     recordPlotlyDiv
   );

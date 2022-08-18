@@ -94,6 +94,8 @@ def record_detail(pid_value, record, files, is_preview=False):
         ),
         is_preview=is_preview,
         is_draft=is_draft,
+        tsd_token=current_app.config.get("TSD_API_AUTH_TOKEN"),
+        tsd_srvurl=current_app.config.get("TSD_API_URL")
     )
 
 

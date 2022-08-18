@@ -4,6 +4,7 @@ import axios from "axios";
 
 
 export class Plotly extends Component {
+  
   constructor(props) {
     super(props);
     this.state = {
@@ -14,15 +15,27 @@ export class Plotly extends Component {
 
   componentDidMount() {
     const { chartresource } = this.props;
+    const { tsdtoken } = this.props;
+    const { tsdsrvurl } = this.props;
 
     axios({
-      url: chartresource.chart_url,
+      url: tsdsrvurl + '/timeseries/values',
       method: 'get',
-      params: chartresource.chart_props
+      headers: {
+        'Authorization': tsdtoken
+      },
+      params: {
+        'request': {
+          // 'id': cr.guid
+          'id': chartresource[0].id
+          // TO ADD other Parameteres for preview
+        }
+      }
     })
     .then(response => {
       const datas = response.data;
       this.setState({
+        tn: chartresource[0].name,
         dt: datas.data.Datetime.map(x => x * 1000),
         v: datas.data.Value
        });
@@ -31,13 +44,13 @@ export class Plotly extends Component {
       if (error.response) {
         // The request was made and the server responded with a status code
         // that falls out of the range of 2xx
-        console.log(error.response.data);
-        console.log(error.response.status);
-        console.log(error.response.headers);
+        console.log('Error response.data: \n' + error.response.data);
+        console.log('Error response.status: \n' + error.response.status);
+        console.log('Error response.headers: \n' + error.response.headers);
       } else if (error.request) {
         // The request was made but no response was received
         // `error.request`
-         console.log(error.request);
+         console.log('Error response.request: \n' + error.request);
       } else {
         // Something happened in setting up the request that triggered an Error
          console.log('Error', error.message);
@@ -47,6 +60,10 @@ export class Plotly extends Component {
     .then(function () {
       // always executed
     });
+  }
+
+  componentDidCatch(error, info) {
+    console.error(error);
   }
 
   render() {
