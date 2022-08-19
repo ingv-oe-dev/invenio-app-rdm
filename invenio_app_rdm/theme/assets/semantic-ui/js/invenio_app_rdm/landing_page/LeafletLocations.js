@@ -1,35 +1,67 @@
 import React, { Component } from "react";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
-import { icon } from "./LeafletIcons"
+import { Container, List } from "semantic-ui-react";
+import { LocationsMapPreview } from "../components/LocationsMapPreview";
+import PropTypes from "prop-types";
 
 export class LeafletLocations extends Component {
   constructor(props) {
     super(props);
   }
 
+  extractLocations = (locations) => {
+    const markers = [];
+    const locs = [];
+    locations.features.forEach((element) => {
+      if (element.geometry) {
+        switch (element.geometry.type) {
+          case "Point":
+            markers.push({
+              latlng: element.geometry.coordinates,
+              place: element.place ? element.place : "",
+              description: element.description ? element.description : "",
+            });
+            break;
+          default:
+            locs.push({
+              place: element.place ? element.place : "",
+              description: element.description ? element.description : "",
+            });
+            break;
+        }
+      } else {
+        locs.push({
+          place: element.place ? element.place : "",
+          description: element.description ? element.description : "",
+        });
+      }
+    });
+    return [markers, locs];
+  };
+
   render() {
     const { locations } = this.props;
-    const markers = [];
-    locations.features.forEach(element => {
-      markers.push({
-        "latlng": element.geometry.coordinates,
-        "place": element.place
-      });
-    });
-    const position = locations.features[0].geometry.coordinates;
-    console.log(markers);
-    
+    const [markers, locs] = this.extractLocations(locations);
+    console.log(markers, locs);
+
     return (
-      <MapContainer center={position} zoom={10} scrollWheelZoom={true} markers={markers}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; <a href=&quot;https://www.openstreetmap.org/copyright&quot;>OpenStreetMap</a> contributors" />
-        {markers.map((position, idx) =>
-          <Marker key={`marker-${idx}`} position={position.latlng} icon={icon} >
-            <Popup>
-              <span>{position.place}</span>
-            </Popup>
-          </Marker>
-        )}
-      </MapContainer>
+      <Container>
+        <List>
+          {locs.map((el) => (
+            <List.Item key={el.place.toString}>
+              <List.Icon name="marker" />
+              <List.Content>
+                <List.Header>{el.place}</List.Header>
+                <List.Description> {el.description}</List.Description>
+              </List.Content>
+            </List.Item>
+          ))}
+        </List>
+        {markers.length > 0 ? <LocationsMapPreview markers={markers} /> : ""}
+      </Container>
     );
   }
+}
+
+LeafletLocations.propTypes = {
+  locations: PropTypes.object.isRequired,
 };
