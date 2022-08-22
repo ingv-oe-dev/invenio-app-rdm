@@ -1,6 +1,8 @@
 import React, { Component } from "react";
-import Plot from "react-plotly.js";
+import { Container } from "semantic-ui-react";
 import axios from "axios";
+import { TSPlotly } from "../components/TSPlotly";
+
 import PropTypes from "prop-types";
 
 export class Plotly extends Component {
@@ -65,31 +67,9 @@ export class Plotly extends Component {
 
   render() {
     return (
-      <Plot
-        data={[
-          {
-            x: this.state.dt,
-            y: this.state.v,
-            type: "scatter",
-            mode: "lines",
-            line: { color: "#bd0a27" },
-          },
-        ]}
-        layout={{
-          autosize: true,
-          title: "Time Series",
-          xaxis: {
-            autorange: true,
-            type: "date",
-          },
-          yaxis: {
-            autorange: true,
-            type: "linear",
-          },
-        }}
-        useResizeHandler
-        style={{ width: "100%", height: "100%" }}
-      />
+      <Container>
+        <TSPlotly tsdata={this.state} />
+      </Container>
     );
   }
 }
