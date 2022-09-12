@@ -8,13 +8,13 @@ import PropTypes from "prop-types";
 export class Plotly extends Component {
   constructor(props) {
     super(props);
-
+    const columns = props.chartresource[0].chart_props.columns;
     var tmpState = {};
-    for (let index = 0; index < props.chartresource[0].chart_props.columns.length; index++) {
-      const element = props.chartresource[0].chart_props.columns[index];
+    for (let i = 0; i < columns.length; i++) {
+      const element = columns[i];
       tmpState[element.name] = [];
     }
-    tmpState['timestamp'] = [];
+    tmpState["timestamp"] = [];
     this.state = tmpState;
   }
 
@@ -42,7 +42,7 @@ export class Plotly extends Component {
     })
       .then((response) => {
         const datas = response.data;
-        let obj = {}
+        let obj = {};
         for (const [key, value] of Object.entries(datas.data)) {
           obj[key] = value;
         }
@@ -75,9 +75,6 @@ export class Plotly extends Component {
   }
 
   render() {
-    
-    console.log(this.state)
-
     return (
       <Container>
         <TSPlotly tsdata={this.state} />

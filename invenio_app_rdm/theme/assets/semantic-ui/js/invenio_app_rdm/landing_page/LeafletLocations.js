@@ -40,8 +40,6 @@ export const LeafletLocations = ({ locations }) => {
     setMarkers(markers);
     setLoading(false);
   }, []);
-  console.log(loading);
-  console.log(markers, locs);
 
   return loading ? (
     <Loading />
