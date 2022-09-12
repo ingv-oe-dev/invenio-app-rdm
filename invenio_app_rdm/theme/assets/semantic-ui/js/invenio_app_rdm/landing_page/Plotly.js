@@ -8,10 +8,14 @@ import PropTypes from "prop-types";
 export class Plotly extends Component {
   constructor(props) {
     super(props);
-    this.state = {
-      dt: [],
-      v: [],
-    };
+
+    var tmpState = {};
+    for (let index = 0; index < props.chartresource[0].chart_props.columns.length; index++) {
+      const element = props.chartresource[0].chart_props.columns[index];
+      tmpState[element.name] = [];
+    }
+    tmpState['timestamp'] = [];
+    this.state = tmpState;
   }
 
   componentDidMount() {
@@ -27,17 +31,22 @@ export class Plotly extends Component {
       },
       params: {
         request: {
-          id: chartresource[0].id,
+          id: chartresource[0].guid,
+          sampling: chartresource[0].chart_props.preview.sampling,
+          starttime: chartresource[0].chart_props.preview.start_time,
+          endtime: chartresource[0].chart_props.preview.end_time,
+          columns: chartresource[0].chart_props.columns,
           // TO ADD other Parameteres for preview
         },
       },
     })
       .then((response) => {
         const datas = response.data;
-        this.setState({
-          dt: datas.data.Datetime, //datas.data.Datetime.map((x) => x * 1000),
-          v: datas.data.Value,
-        });
+        let obj = {}
+        for (const [key, value] of Object.entries(datas.data)) {
+          obj[key] = value;
+        }
+        this.setState(obj);
       })
       .catch(function (error) {
         if (error.response) {
@@ -66,6 +75,9 @@ export class Plotly extends Component {
   }
 
   render() {
+    
+    console.log(this.state)
+
     return (
       <Container>
         <TSPlotly tsdata={this.state} />
