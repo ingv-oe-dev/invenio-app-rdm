@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer } from "react-leaflet";
-import { CustomLoader, CustomMarker } from "./CustomComponents";
+import { CustomMarker, Loading } from "./CustomComponents";
 import PropTypes from "prop-types";
 
 export const LocationsMapPreview = ({ markers }) => {
@@ -19,7 +19,7 @@ export const LocationsMapPreview = ({ markers }) => {
   }, []);
 
   return loading ? (
-    <CustomLoader />
+    <Loading />
   ) : (
     <MapContainer center={center} zoom={10} scrollWheelZoom markers={markers}>
       {tileLayer}

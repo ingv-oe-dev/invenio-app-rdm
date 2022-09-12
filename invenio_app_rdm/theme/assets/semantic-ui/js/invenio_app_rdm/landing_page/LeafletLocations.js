@@ -1,14 +1,15 @@
-import React, { Component } from "react";
+import React, { useEffect, useState } from "react";
 import { Container, List } from "semantic-ui-react";
 import { LocationsMapPreview } from "../components/LocationsMapPreview";
+import { Loading } from "../components/CustomComponents";
 import PropTypes from "prop-types";
 
-export class LeafletLocations extends Component {
-  constructor(props) {
-    super(props);
-  }
+export const LeafletLocations = ({ locations }) => {
+  const [locs, setLocations] = useState({});
+  const [markers, setMarkers] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  extractLocations = (locations) => {
+  useEffect(() => {
     const markers = [];
     const locs = [];
     locations.features.forEach((element) => {
@@ -35,32 +36,32 @@ export class LeafletLocations extends Component {
         });
       }
     });
-    return [markers, locs];
-  };
+    setLocations(locs);
+    setMarkers(markers);
+    setLoading(false);
+  }, []);
+  console.log(loading);
+  console.log(markers, locs);
 
-  render() {
-    const { locations } = this.props;
-    const [markers, locs] = this.extractLocations(locations);
-    console.log(markers, locs);
-
-    return (
-      <Container>
-        <List>
-          {locs.map((el) => (
-            <List.Item key={el.place.toString}>
-              <List.Icon name="marker" />
-              <List.Content>
-                <List.Header>{el.place}</List.Header>
-                <List.Description> {el.description}</List.Description>
-              </List.Content>
-            </List.Item>
-          ))}
-        </List>
-        {markers.length > 0 ? <LocationsMapPreview markers={markers} /> : ""}
-      </Container>
-    );
-  }
-}
+  return loading ? (
+    <Loading />
+  ) : (
+    <Container>
+      <List>
+        {locs.map((el) => (
+          <List.Item key={el.place.toString}>
+            <List.Icon name="marker" />
+            <List.Content>
+              <List.Header>{el.place}</List.Header>
+              <List.Description> {el.description}</List.Description>
+            </List.Content>
+          </List.Item>
+        ))}
+      </List>
+      {markers.length > 0 ? <LocationsMapPreview markers={markers} /> : ""}
+    </Container>
+  );
+};
 
 LeafletLocations.propTypes = {
   locations: PropTypes.object.isRequired,

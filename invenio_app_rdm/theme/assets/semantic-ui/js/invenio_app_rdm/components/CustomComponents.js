@@ -1,6 +1,6 @@
 import React from "react";
 import { Marker, Popup } from "react-leaflet";
-import { Dimmer, List, Loader, Segment } from "semantic-ui-react";
+import { List, Placeholder } from "semantic-ui-react";
 import { icon } from "../landing_page/LeafletIcons";
 import PropTypes from "prop-types";
 
@@ -21,15 +21,15 @@ export const CustomMarker = ({ position }) => {
   );
 };
 
-export const CustomLoader = () => {
-  return (
-    <Segment>
-      <Dimmer active inverted>
-        <Loader inverted>Loading</Loader>
-      </Dimmer>
-    </Segment>
-  );
-};
+export const Loading = () => (
+  <Placeholder>
+    <Placeholder.Line />
+    <Placeholder.Line />
+    <Placeholder.Line />
+    <Placeholder.Line />
+    <Placeholder.Line />
+  </Placeholder>
+);
 
 CustomMarker.propTypes = {
   position: PropTypes.object.isRequired,

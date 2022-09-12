@@ -271,7 +271,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     "ts_loader": {
         "task": "oedatarep_ts_loader.services.tasks.register_ts",
-        "schedule": timedelta(seconds=20),
+        "schedule": timedelta(hours=6),
     },
 }
 """Scheduled tasks configuration (aka cronjobs)."""
