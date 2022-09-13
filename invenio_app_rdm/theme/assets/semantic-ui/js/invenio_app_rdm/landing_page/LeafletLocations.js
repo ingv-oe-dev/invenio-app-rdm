@@ -1,35 +1,66 @@
-import React, { Component } from "react";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
-import { icon } from "./LeafletIcons"
+import React, { useEffect, useState } from "react";
+import { Container, List } from "semantic-ui-react";
+import { LocationsMapPreview } from "../components/LocationsMapPreview";
+import { Loading } from "../components/CustomComponents";
+import PropTypes from "prop-types";
 
-export class LeafletLocations extends Component {
-  constructor(props) {
-    super(props);
-  }
+export const LeafletLocations = ({ locations }) => {
+  const [locs, setLocations] = useState({});
+  const [markers, setMarkers] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  render() {
-    const { locations } = this.props;
+  useEffect(() => {
     const markers = [];
-    locations.features.forEach(element => {
-      markers.push({
-        "latlng": element.geometry.coordinates,
-        "place": element.place
-      });
+    const locs = [];
+    locations.features.forEach((element) => {
+      if (element.geometry) {
+        switch (element.geometry.type) {
+          case "Point":
+            markers.push({
+              latlng: element.geometry.coordinates,
+              place: element.place ? element.place : "",
+              description: element.description ? element.description : "",
+            });
+            break;
+          default:
+            locs.push({
+              place: element.place ? element.place : "",
+              description: element.description ? element.description : "",
+            });
+            break;
+        }
+      } else {
+        locs.push({
+          place: element.place ? element.place : "",
+          description: element.description ? element.description : "",
+        });
+      }
     });
-    const position = locations.features[0].geometry.coordinates;
-    console.log(markers);
-    
-    return (
-      <MapContainer center={position} zoom={10} scrollWheelZoom={true} markers={markers}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; <a href=&quot;https://www.openstreetmap.org/copyright&quot;>OpenStreetMap</a> contributors" />
-        {markers.map((position, idx) =>
-          <Marker key={`marker-${idx}`} position={position.latlng} icon={icon} >
-            <Popup>
-              <span>{position.place}</span>
-            </Popup>
-          </Marker>
-        )}
-      </MapContainer>
-    );
-  }
+    setLocations(locs);
+    setMarkers(markers);
+    setLoading(false);
+  }, []);
+
+  return loading ? (
+    <Loading />
+  ) : (
+    <Container>
+      <List>
+        {locs.map((el) => (
+          <List.Item key={el.place.toString}>
+            <List.Icon name="marker" />
+            <List.Content>
+              <List.Header>{el.place}</List.Header>
+              <List.Description> {el.description}</List.Description>
+            </List.Content>
+          </List.Item>
+        ))}
+      </List>
+      {markers.length > 0 ? <LocationsMapPreview markers={markers} /> : ""}
+    </Container>
+  );
+};
+
+LeafletLocations.propTypes = {
+  locations: PropTypes.object.isRequired,
 };

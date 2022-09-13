@@ -11,7 +11,7 @@
 
     <section id="recordPlotlySection" class="rel-mt-2" aria-label="{{ _('Record chart') }}">
       <h2 id="record-chart-heading">{{ _('Chart') }}</h2>
+      {% set chartresource = record.metadata.ts_resources | tojson %}
 
-      {% set chartresource = record.metadata.chart_resource | tojson %}
-      <div id="recordPlotly" data-chartresource='{{ chartresource }}'></div>
+      <div id="recordPlotly" data-chartresource='{{ chartresource }}' data-tsdtoken='{{tsd_token}}' data-tsdsrvurl='{{tsd_srvurl}}'></div>
     </section>
