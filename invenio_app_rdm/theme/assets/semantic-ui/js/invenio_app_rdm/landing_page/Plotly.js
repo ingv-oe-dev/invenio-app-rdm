@@ -8,7 +8,7 @@ import PropTypes from "prop-types";
 export class Plotly extends Component {
   constructor(props) {
     super(props);
-    const columns = props.chartresource[0].chart_props.columns;
+    const columns = props.chartresource[0].preview.columns;
     var tmpState = {};
     for (let i = 0; i < columns.length; i++) {
       const element = columns[i];
@@ -32,10 +32,10 @@ export class Plotly extends Component {
       params: {
         request: {
           id: chartresource[0].guid,
-          sampling: chartresource[0].chart_props.preview.sampling,
-          starttime: chartresource[0].chart_props.preview.start_time,
-          endtime: chartresource[0].chart_props.preview.end_time,
-          columns: chartresource[0].chart_props.columns,
+          sampling: chartresource[0].preview.sampling,
+          starttime: chartresource[0].preview.starttime,
+          endtime: chartresource[0].preview.endtime,
+          columns: chartresource[0].preview.columns,
           // TO ADD other Parameteres for preview
         },
       },
