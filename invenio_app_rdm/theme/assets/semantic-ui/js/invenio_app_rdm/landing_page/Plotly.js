@@ -20,25 +20,10 @@ export class Plotly extends Component {
 
   componentDidMount() {
     const { chartresource } = this.props;
-    const { tsdtoken } = this.props;
-    const { tsdsrvurl } = this.props;
 
     axios({
-      url: tsdsrvurl + "/timeseries/values",
+      url: chartresource[0].tsdws_url,
       method: "get",
-      headers: {
-        Authorization: tsdtoken,
-      },
-      params: {
-        request: {
-          id: chartresource[0].guid,
-          sampling: chartresource[0].preview.sampling,
-          starttime: chartresource[0].preview.starttime,
-          endtime: chartresource[0].preview.endtime,
-          columns: chartresource[0].preview.columns,
-          // TO ADD other Parameteres for preview
-        },
-      },
     })
       .then((response) => {
         const datas = response.data;
@@ -85,6 +70,4 @@ export class Plotly extends Component {
 
 Plotly.propTypes = {
   chartresource: PropTypes.array.isRequired,
-  tsdtoken: PropTypes.string.isRequired,
-  tsdsrvurl: PropTypes.string.isRequired,
 };
