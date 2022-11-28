@@ -17,7 +17,7 @@ export const LeafletLocations = ({ locations }) => {
         switch (element.geometry.type) {
           case "Point":
             markers.push({
-              latlng: element.geometry.coordinates,
+              latlng: element.geometry.coordinates.reverse(),
               place: element.place ? element.place : "",
               description: element.description ? element.description : "",
             });
