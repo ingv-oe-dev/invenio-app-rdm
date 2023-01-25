@@ -8,6 +8,7 @@
 
 import { i18next } from "@translations/invenio_app_rdm/i18next";
 import _get from "lodash/get";
+import _isEmpty from "lodash/isEmpty";
 import React, { Component, createRef, Fragment } from "react";
 import {
   AccessRightField,
@@ -36,8 +37,8 @@ import {
   VersionField,
   FundingField,
 } from "react-invenio-deposit";
-import { AccordionField } from "react-invenio-forms";
-import { Card, Container, Divider, Grid, Ref, Sticky } from "semantic-ui-react";
+import { AccordionField, CustomFields } from "react-invenio-forms";
+import { Card, Container, Grid, Ref, Sticky } from "semantic-ui-react";
 import PropTypes from "prop-types";
 
 export class RDMDepositForm extends Component {
@@ -101,7 +102,10 @@ export class RDMDepositForm extends Component {
         files={files}
         permissions={permissions}
       >
-        <FormFeedback fieldPath="message" />
+        <FormFeedback
+          fieldPath="message"
+          labels={this.config.custom_fields.error_labels}
+        />
         <CommunityHeader imagePlaceholderLink="/static/images/square-placeholder.png" />
         <Container id="rdm-deposit-form" className="rel-mt-1">
           <Grid className="mt-25">
@@ -354,7 +358,6 @@ export class RDMDepositForm extends Component {
                     return { headerContent, descriptionContent, awardOrFunder };
                   }}
                 />
-                <Divider />
               </AccordionField>
 
               <AccordionField
@@ -380,6 +383,15 @@ export class RDMDepositForm extends Component {
                   options={this.vocabularies.metadata.identifiers}
                 />
               </AccordionField>
+              {!_isEmpty(this.config.custom_fields.ui) && (
+                <CustomFields
+                  config={this.config.custom_fields.ui}
+                  templateLoader={(widget) =>
+                    import(`@templates/custom_fields/${widget}.js`)
+                  }
+                  fieldPathPrefix="custom_fields"
+                />
+              )}
             </Grid.Column>
             <Ref innerRef={this.sidebarRef}>
               <Grid.Column

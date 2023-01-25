@@ -34,6 +34,7 @@ from datetime import datetime, timedelta
 from celery.schedules import crontab
 from flask_principal import Denial
 from invenio_access.permissions import any_user
+from invenio_rdm_records.config import RDM_NAMESPACES
 from invenio_vocabularies.config import (
     VOCABULARIES_DATASTREAM_READERS,
     VOCABULARIES_DATASTREAM_TRANSFORMERS,
@@ -269,6 +270,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "invenio_rdm_records.services.tasks.update_expired_embargos",
         "schedule": crontab(minute=2, hour=0),
     },
+    "expire_requests": {
+        "task": "invenio_requests.tasks.check_expired_requests",
+        "schedule": crontab(minute=3, hour=0),
+    },
     "ts_loader": {
         "task": "oedatarep_ts_loader.services.tasks.register_ts",
         "schedule": timedelta(hours=6),
@@ -434,7 +439,7 @@ OAISERVER_RECORD_SETS_FETCHER = "invenio_oaiserver.utils:record_sets_fetcher"
 """Record's OAI sets function."""
 
 OAISERVER_RECORD_INDEX = "rdmrecords-records"
-"""Specify an Elastic index with records that should be exposed via OAI-PMH."""
+"""Specify a search index with records that should be exposed via OAI-PMH."""
 
 OAISERVER_GETRECORD_FETCHER = "invenio_rdm_records.oai:getrecord_fetcher"
 """Record data fetcher for serialization."""
@@ -465,8 +470,8 @@ ACCESS_CACHE = "invenio_cache:current_cache"
 # ==============
 # See https://invenio-search.readthedocs.io/en/latest/configuration.html
 
-SEARCH_ELASTIC_HOSTS = [{"host": "localhost", "port": 9200}]
-"""Elasticsearch hosts."""
+SEARCH_HOSTS = [{"host": "localhost", "port": 9200}]
+"""Search hosts."""
 
 # Invenio-Indexer
 # ===============
@@ -634,6 +639,9 @@ APP_RDM_DEPOSIT_FORM_QUOTA = {
 
 APP_RDM_DISPLAY_DECIMAL_FILE_SIZES = True
 """Display the file sizes in powers of 1000 (KB, ...) or 1024 (KiB, ...)."""
+
+APP_RDM_DEPOSIT_FORM_PUBLISH_MODAL_EXTRA = ""
+"""Additional text/html to be displayed in the publish and submit for review modal."""
 
 RDM_CITATION_STYLES = [
     ("apa", _("APA")),
