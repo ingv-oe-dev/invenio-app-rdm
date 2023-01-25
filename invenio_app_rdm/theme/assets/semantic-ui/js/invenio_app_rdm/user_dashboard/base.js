@@ -51,7 +51,8 @@ export function DashboardResultView(props) {
                           values={sortOptions}
                           label={(cmp) => (
                             <>
-                              {i18next.t("Sort by")} {cmp}
+                              <label className="mr-10">{i18next.t("Sort by")}</label>
+                              {cmp}
                             </>
                           )}
                         />
@@ -91,7 +92,6 @@ export const DashboardSearchLayoutHOC = ({
   const DashboardUploadsSearchLayout = (props) => {
     const [sidebarVisible, setSidebarVisible] = React.useState(false);
     const { config } = props;
-    console.log("inner props", props);
 
     return (
       <Grid>

@@ -44,10 +44,9 @@
           <div class="ui container page-subheader">
             <div class="page-subheader-element ">
               <img
-                class="ui tiny image community-header-logo"
+                class="ui tiny image community-header-logo has-placeholder"
                 src="{{ community.links.logo }}"
                 alt=""
-                onerror="this.onerror=null;this.src='/static/images/square-placeholder.png'"
               />
             </div>
             <div class="page-subheader-element">
@@ -120,7 +119,7 @@
         <article class="sixteen wide tablet eleven wide computer column main-record-content">
           {% if record.access.record == 'restricted' %}
             <section id="record-access-status"
-                     class="ui {{ record.ui.access_status.message_class }} message"
+                     class="ui {{ record.ui.access_status.message_class }} message rel-mt-1"
                      aria-label="{{ _('Record access information') }}"
             >
               <i class="{{ record.ui.access_status.icon }} icon"></i>
@@ -267,6 +266,7 @@
                       </div>
                     </div>
                   {%- endif %}
+                  <div class="ui divider rel-mt-2"></div>
                 </section>
               {%- endif %}
             {%- endblock record_files -%}

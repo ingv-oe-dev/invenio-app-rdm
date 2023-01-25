@@ -27,6 +27,7 @@ from invenio_app_rdm.records_ui.views.decorators import (
     draft_files_service,
     files_service,
 )
+from invenio_app_rdm.records_ui.views.deposits import load_custom_fields
 
 
 def _resolve_topic_draft(request):
@@ -79,9 +80,9 @@ def _resolve_record_or_draft_files(record):
 @pass_request(expand=True)
 def user_dashboard_request_view(request, **kwargs):
     """User dashboard request details view."""
-    avatar = current_user_resources.users_service.links_item_tpl.expand(current_user)[
-        "avatar"
-    ]
+    avatar = current_user_resources.users_service.links_item_tpl.expand(
+        g.identity, current_user
+    )["avatar"]
 
     request_type = request["type"]
 
@@ -104,6 +105,7 @@ def user_dashboard_request_view(request, **kwargs):
             draft_is_accepted=request_is_accepted,
             files=files,
             is_user_dashboard=True,
+            custom_fields_ui=load_custom_fields()["ui"],
         )
 
     elif is_invitation:
@@ -123,9 +125,9 @@ def community_dashboard_request_view(request, community, community_ui, **kwargs)
     """Community dashboard requests details view."""
     request_type = request["type"]
 
-    avatar = current_user_resources.users_service.links_item_tpl.expand(current_user)[
-        "avatar"
-    ]
+    avatar = current_user_resources.users_service.links_item_tpl.expand(
+        g.identity, current_user
+    )["avatar"]
 
     is_draft_submission = request_type == CommunitySubmission.type_id
     is_invitation = request_type == CommunityInvitation.type_id
@@ -150,6 +152,7 @@ def community_dashboard_request_view(request, community, community_ui, **kwargs)
             draft_is_accepted=request_is_accepted,
             files=files,
             user_avatar=avatar,
+            custom_fields_ui=load_custom_fields()["ui"],
         )
 
     elif is_invitation:

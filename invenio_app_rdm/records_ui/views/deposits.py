@@ -3,13 +3,13 @@
 # Copyright (C) 2019-2021 CERN.
 # Copyright (C) 2019-2021 Northwestern University.
 # Copyright (C)      2021 TU Wien.
+# Copyright (C) 2022 KTH Royal Institute of Technology
 #
 # Invenio App RDM is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
 
 """Routes for record-related pages provided by Invenio-App-RDM."""
 
-from elasticsearch_dsl import Q
 from flask import current_app, g, render_template
 from flask_babelex import lazy_gettext as _
 from flask_login import login_required
@@ -18,8 +18,10 @@ from invenio_rdm_records.proxies import current_rdm_records
 from invenio_rdm_records.resources.serializers import UIJSONSerializer
 from invenio_rdm_records.services.schemas import RDMRecordSchema
 from invenio_rdm_records.services.schemas.utils import dump_empty
+from invenio_search.engine import dsl
 from invenio_vocabularies.proxies import current_service as vocabulary_service
 from invenio_vocabularies.records.models import VocabularyScheme
+from invenio_vocabularies.services.custom_fields import VocabularyCF
 from marshmallow_utils.fields.babel import gettext_from_dict
 from sqlalchemy.orm import load_only
 
@@ -60,9 +62,9 @@ def get_form_pids_config():
                 scheme_label=scheme_label
             ),
             "managed_help_text": _(
-                "Reserve a {scheme_label} by pressing the button (e.g to "
-                "include it in publications). The {scheme_label} is registered"
-                " when your upload is published."
+                "Reserve a {scheme_label} by pressing the button "
+                "(so it can be included in files prior to upload). "
+                "The {scheme_label} is registered when your upload is published."
             ).format(scheme_label=scheme_label),
             "unmanaged_help_text": _(
                 "A {scheme_label} allows your upload to be easily and "
@@ -156,7 +158,7 @@ class VocabulariesOptions:
     def depositable_resource_types(self):
         """Return depositable resource type options (value, label) pairs."""
         self._vocabularies["resource_type"] = self._resource_types(
-            Q("term", tags="depositable")
+            dsl.Q("term", tags="depositable")
         )
         return self._vocabularies["resource_type"]
 
@@ -215,7 +217,7 @@ class VocabulariesOptions:
 
     def linkable_resource_types(self):
         """Dump linkable resource type vocabulary."""
-        return self._resource_types(Q("term", tags="linkable"))
+        return self._resource_types(dsl.Q("term", tags="linkable"))
 
     def identifier_schemes(self):
         """Dump identifiers scheme (fake) vocabulary.
@@ -251,6 +253,37 @@ class VocabulariesOptions:
         return self._vocabularies
 
 
+def load_custom_fields():
+    """Load custom fields configuration."""
+    conf = current_app.config
+    conf_ui = conf.get("RDM_CUSTOM_FIELDS_UI", [])
+    conf_backend = {cf.name: cf for cf in conf.get("RDM_CUSTOM_FIELDS", [])}
+    _vocabulary_fields = []
+    error_labels = {}
+
+    for section_cfg in conf_ui:
+        fields = section_cfg["fields"]
+        for field in fields:
+            field_instance = conf_backend.get(field["field"])
+            # Compute the dictionary to map field path to error labels
+            # for each custom field. This is the label shown at the top of the upload
+            # form
+            field_error_label = field.get("props", {}).get("label")
+            if field_error_label:
+                error_labels[f"custom_fields.{field['field']}"] = field_error_label
+            if getattr(field_instance, "relation_cls", None):
+                # add vocabulary options to field's properties
+                field["props"]["options"] = field_instance.options(g.identity)
+                # mark field as vocabulary
+                field["is_vocabulary"] = True
+                _vocabulary_fields.append(field["field"])
+    return {
+        "ui": conf_ui,
+        "vocabularies": _vocabulary_fields,
+        "error_labels": error_labels,
+    }
+
+
 def get_form_config(**kwargs):
     """Get the react form configuration."""
     conf = current_app.config
@@ -268,6 +301,10 @@ def get_form_config(**kwargs):
             user_dashboard_request=conf["RDM_REQUESTS_ROUTES"][
                 "user-dashboard-request-details"
             ]
+        ),
+        custom_fields=load_custom_fields(),
+        publish_modal_extra=current_app.config.get(
+            "APP_RDM_DEPOSIT_FORM_PUBLISH_MODAL_EXTRA"
         ),
         **kwargs,
     )
@@ -302,7 +339,7 @@ def new_record():
 def deposit_create(community=None):
     """Create a new deposit."""
     return render_template(
-        "invenio_app_rdm/records/deposit.html",
+        current_app.config["APP_RDM_DEPOSIT_FORM_TEMPLATE"],
         forms_config=get_form_config(createUrl="/api/records"),
         searchbar_config=dict(searchUrl=get_search_url()),
         record=new_record(),
@@ -321,7 +358,7 @@ def deposit_edit(pid_value, draft=None, draft_files=None):
     record = ui_serializer.dump_obj(draft.to_dict())
 
     return render_template(
-        "invenio_app_rdm/records/deposit.html",
+        current_app.config["APP_RDM_DEPOSIT_FORM_TEMPLATE"],
         forms_config=get_form_config(apiUrl=f"/api/records/{pid_value}/draft"),
         record=record,
         files=files_dict,

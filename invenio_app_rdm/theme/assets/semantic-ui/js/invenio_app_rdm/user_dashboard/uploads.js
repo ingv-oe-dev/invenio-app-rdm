@@ -12,21 +12,24 @@ import _get from "lodash/get";
 import _truncate from "lodash/truncate";
 import React from "react";
 import { Button, Card, Divider, Header, Segment } from "semantic-ui-react";
+import { parametrize } from "react-overridable";
 import {
-  RDMBucketAggregationElement,
   RDMCountComponent,
   RDMEmptyResults as RDMNoSearchResults,
-  RDMRecordFacets,
-  RDMRecordFacetsValues,
   RDMRecordSearchBarElement,
   RDMToggleComponent,
 } from "../search/components";
-import { axiosWithconfig } from "../utils";
+import { http } from "react-invenio-forms";
 import { DashboardResultView, DashboardSearchLayoutHOC } from "./base";
 import { createSearchAppInit } from "@js/invenio_search_ui";
 import { ComputerTabletUploadsItem } from "./uploads_items/ComputerTabletUploadsItem";
 import { MobileUploadsItem } from "./uploads_items/MobileUploadsItem";
 import PropTypes from "prop-types";
+import {
+  ContribSearchAppFacets,
+  ContribBucketAggregationElement,
+  ContribBucketAggregationValuesElement,
+} from "@js/invenio_search_ui/components";
 
 const statuses = {
   in_review: { color: "warning", title: i18next.t("In review") },
@@ -39,7 +42,7 @@ const statuses = {
 
 export const RDMRecordResultsListItem = ({ result }) => {
   const editRecord = () => {
-    axiosWithconfig
+    http
       .post(`/api/records/${result.id}/draft`)
       .then(() => {
         window.location = `/uploads/${result.id}`;
@@ -171,14 +174,18 @@ export const DashboardUploadsSearchLayout = DashboardSearchLayoutHOC({
   ),
 });
 
+const ContribSearchAppFacetsWithConfig = parametrize(ContribSearchAppFacets, {
+  toogle: true,
+});
+
 export const defaultComponents = {
-  "BucketAggregation.element": RDMBucketAggregationElement,
-  "BucketAggregationValues.element": RDMRecordFacetsValues,
+  "BucketAggregation.element": ContribBucketAggregationElement,
+  "BucketAggregationValues.element": ContribBucketAggregationValuesElement,
   "Count.element": RDMCountComponent,
   "EmptyResults.element": RDMEmptyResults,
   "ResultsList.item": RDMRecordResultsListItem,
   "ResultsGrid.item": RDMRecordResultsGridItem,
-  "SearchApp.facets": RDMRecordFacets,
+  "SearchApp.facets": ContribSearchAppFacetsWithConfig,
   "SearchApp.layout": DashboardUploadsSearchLayout,
   "SearchApp.results": DashboardResultView,
   "SearchBar.element": RDMRecordSearchBarElement,

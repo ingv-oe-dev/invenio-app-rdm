@@ -31,6 +31,7 @@ def create_blueprint(app):
     )
 
     blueprint.add_url_rule(routes["index"], view_func=index)
+    blueprint.add_url_rule(routes["robots"], view_func=robots)
     blueprint.add_url_rule(routes["help_search"], view_func=help_search)
 
     @blueprint.before_app_first_request
@@ -63,7 +64,13 @@ def index():
     return render_template(
         current_app.config["THEME_FRONTPAGE_TEMPLATE"],
         records=records_serializer(records),
+        show_intro_section=current_app.config["THEME_SHOW_FRONTPAGE_INTRO_SECTION"],
     )
+
+
+def robots():
+    """Robots.txt."""
+    return current_app.send_static_file("robots.txt")
 
 
 def help_search():
