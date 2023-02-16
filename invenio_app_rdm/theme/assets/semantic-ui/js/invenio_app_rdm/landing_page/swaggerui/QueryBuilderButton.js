@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "semantic-ui-react";
-import { axiosWithconfig } from "../utils";
+import { axiosWithconfig } from "../../utils";
 import PropTypes from "prop-types";
 
 export const QueryBuilderButton = ({ onError, apiui }) => {
@@ -12,7 +12,8 @@ export const QueryBuilderButton = ({ onError, apiui }) => {
             .then((rsp) => {
                 setToken(rsp.data);
                 setLoading(false);
-                window.open(apiui + '?token=' + rsp.data, '_blank')
+                console.log(apiui);
+                window.open(apiui + '&token=' + rsp.data, '_blank')
             })
             .catch((error) => {
                 setLoading(false);
