@@ -25,7 +25,7 @@ export const QueryBuilderButton = ({ onError, apiui }) => {
         <Button
             onClick={handleClick}
             loading={loading}
-        > Click Here!!
+        > Query Data
         </Button>
     );
 };
