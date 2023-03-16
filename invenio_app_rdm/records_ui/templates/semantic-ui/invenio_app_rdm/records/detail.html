@@ -25,7 +25,7 @@
 {%- set show_record_management_menu = can_manage_record and (not is_preview or is_preview_submission_request) %}
 
 {%- block page_body %}
-
+{%- if config.ACCOUNTS and current_user.is_authenticated %}
   <section id="banners" class="banners" aria-label="{{ _('Information banner') }}">
 
     <!-- COMMUNITY HEADER: hide it when displaying the submission request -->
@@ -355,7 +355,15 @@
     </div>
 
   </div>
-
+{%- else %}
+<div>
+  <h2 class="ui icon center aligned header">
+    <i aria-hidden="true" class="lock circular icon"></i>
+    <div class="content">Access to this repository's data is currently granted to project members and partners only.</div>
+  </h2>
+  <div class="ui center aligned sub header">Please <a href="/login">login</a> with your credentials.</div>
+</div>
+{%- endif %}
 {%- endblock page_body %}
 
 {%- block javascript %}
