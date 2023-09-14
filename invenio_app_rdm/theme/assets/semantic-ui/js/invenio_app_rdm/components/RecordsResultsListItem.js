@@ -12,10 +12,12 @@ import Overridable from "react-overridable";
 import { SearchItemCreators } from "../utils";
 import PropTypes from "prop-types";
 import { Item, Label, Icon } from "semantic-ui-react";
+import { buildUID } from "react-searchkit";
+import { CompactStats } from "./CompactStats";
 
 class RecordsResultsListItem extends Component {
   render() {
-    const { currentQueryState, result, key } = this.props;
+    const { currentQueryState, result, key, appName } = this.props;
 
     const accessStatusId = _get(result, "ui.access_status.id", "open");
     const accessStatus = _get(result, "ui.access_status.title_l10n", "Open");
@@ -47,6 +49,10 @@ class RecordsResultsListItem extends Component {
     const title = _get(result, "metadata.title", "No title");
     const version = _get(result, "ui.version", null);
     const versions = _get(result, "versions");
+    const uniqueViews = _get(result, "stats.all_versions.unique_views", 0);
+    const uniqueDownloads = _get(result, "stats.all_versions.unique_downloads", 0);
+
+    const publishingInformation = _get(result, "ui.publishing_information.journal", "");
 
     const filters = currentQueryState && Object.fromEntries(currentQueryState.filters);
     const allVersionsVisible = filters?.allversions;
@@ -56,7 +62,7 @@ class RecordsResultsListItem extends Component {
     const viewLink = `/records/${result.id}`;
     return (
       <Overridable
-        id="InvenioAppRdm.RecordsResultsListItem.layout"
+        id={buildUID("RecordsResultsListItem.layout", "", appName)}
         result={result}
         key={key}
         accessStatusId={accessStatusId}
@@ -77,13 +83,17 @@ class RecordsResultsListItem extends Component {
         <Item key={key ?? result.id}>
           <Item.Content>
             <Item.Extra className="labels-actions">
-              <Label size="tiny" className="primary">
+              <Label horizontal size="small" className="primary">
                 {publicationDate} ({version})
               </Label>
-              <Label size="tiny" className="neutral">
+              <Label horizontal size="small" className="neutral">
                 {resourceType}
               </Label>
-              <Label size="tiny" className={`access-status ${accessStatusId}`}>
+              <Label
+                horizontal
+                size="small"
+                className={`access-status ${accessStatusId}`}
+              >
                 {accessStatusIcon && <Icon name={accessStatusIcon} />}
                 {accessStatus}
               </Label>
@@ -103,24 +113,46 @@ class RecordsResultsListItem extends Component {
                   {subject.title_l10n}
                 </Label>
               ))}
-              {createdDate && (
-                <p>
-                  <small>
-                    {i18next.t("Uploaded on")} <span>{createdDate}</span>
-                  </small>
-                </p>
-              )}
-              {!allVersionsVisible && versions.index > 1 && (
-                <p>
-                  <small>
-                    <b>
-                      {numOtherVersions} more{" "}
-                      {numOtherVersions > 1 ? "versions" : "version"} exist for this
-                      record
-                    </b>
-                  </small>
-                </p>
-              )}
+
+              <div className="flex justify-space-between align-items-end">
+                <small>
+                  <p>
+                    {createdDate && (
+                      <>
+                        {i18next.t("Uploaded on {{uploadDate}}", {
+                          uploadDate: createdDate,
+                        })}
+                      </>
+                    )}
+                    {createdDate && publishingInformation && " | "}
+
+                    {publishingInformation && (
+                      <>
+                        {i18next.t("Published in: {{publishInfo}}", {
+                          publishInfo: publishingInformation,
+                        })}
+                      </>
+                    )}
+                  </p>
+
+                  {!allVersionsVisible && versions.index > 1 && (
+                    <p>
+                      <b>
+                        {i18next.t("{{count}} more versions exist for this record", {
+                          count: numOtherVersions,
+                        })}
+                      </b>
+                    </p>
+                  )}
+                </small>
+
+                <small>
+                  <CompactStats
+                    uniqueViews={uniqueViews}
+                    uniqueDownloads={uniqueDownloads}
+                  />
+                </small>
+              </div>
             </Item.Extra>
           </Item.Content>
         </Item>
@@ -133,11 +165,13 @@ RecordsResultsListItem.propTypes = {
   currentQueryState: PropTypes.object,
   result: PropTypes.object.isRequired,
   key: PropTypes.string,
+  appName: PropTypes.string,
 };
 
 RecordsResultsListItem.defaultProps = {
   key: null,
   currentQueryState: null,
+  appName: "",
 };
 
 export default Overridable.component("RecordsResultsListItem", RecordsResultsListItem);

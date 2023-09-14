@@ -4,6 +4,7 @@
 # Copyright (C) 2019-2021 Northwestern University.
 # Copyright (C)      2021 TU Wien.
 # Copyright (C) 2022 KTH Royal Institute of Technology
+# Copyright (C) 2023 Graz University of Technology.
 #
 # Invenio App RDM is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
@@ -11,8 +12,9 @@
 """Routes for record-related pages provided by Invenio-App-RDM."""
 
 from flask import current_app, g, render_template
-from flask_babelex import lazy_gettext as _
 from flask_login import login_required
+from invenio_communities.proxies import current_communities
+from invenio_i18n import lazy_gettext as _
 from invenio_i18n.ext import current_i18n
 from invenio_rdm_records.proxies import current_rdm_records
 from invenio_rdm_records.resources.serializers import UIJSONSerializer
@@ -21,7 +23,6 @@ from invenio_rdm_records.services.schemas.utils import dump_empty
 from invenio_search.engine import dsl
 from invenio_vocabularies.proxies import current_service as vocabulary_service
 from invenio_vocabularies.records.models import VocabularyScheme
-from invenio_vocabularies.services.custom_fields import VocabularyCF
 from marshmallow_utils.fields.babel import gettext_from_dict
 from sqlalchemy.orm import load_only
 
@@ -74,6 +75,15 @@ def get_form_pids_config():
         pids_providers.append(pids_provider)
 
     return pids_providers
+
+
+def get_record_permissions(actions, record=None):
+    """Helper for generating (default) record action permissions."""
+    service = current_rdm_records.records_service
+    return {
+        f"can_{action}": service.check_permission(g.identity, action, record=record)
+        for action in actions
+    }
 
 
 class VocabulariesOptions:
@@ -284,9 +294,21 @@ def load_custom_fields():
     }
 
 
+def get_user_communities_memberships():
+    """Return current identity communities memberships."""
+    memberships = current_communities.service.members.read_memberships(g.identity)
+    return {id: role for (id, role) in memberships["memberships"]}
+
+
 def get_form_config(**kwargs):
     """Get the react form configuration."""
     conf = current_app.config
+    custom_fields = load_custom_fields()
+    # keep only upload form configurable custom fields
+    custom_fields["ui"] = [
+        cf for cf in custom_fields["ui"] if not cf.get("hide_from_upload_form", False)
+    ]
+
     return dict(
         vocabularies=VocabulariesOptions().dump(),
         autocomplete_names=conf.get(
@@ -302,7 +324,8 @@ def get_form_config(**kwargs):
                 "user-dashboard-request-details"
             ]
         ),
-        custom_fields=load_custom_fields(),
+        user_communities_memberships=get_user_communities_memberships(),
+        custom_fields=custom_fields,
         publish_modal_extra=current_app.config.get(
             "APP_RDM_DEPOSIT_FORM_PUBLISH_MODAL_EXTRA"
         ),
@@ -319,7 +342,7 @@ def get_search_url():
 def new_record():
     """Create an empty record with default values."""
     record = dump_empty(RDMRecordSchema)
-    record["files"] = {"enabled": True}
+    record["files"] = {"enabled": current_app.config.get("RDM_DEFAULT_FILES_ENABLED")}
     if "doi" in current_rdm_records.records_service.config.pids_providers:
         record["pids"] = {"doi": {"provider": "external", "identifier": ""}}
     else:
@@ -345,6 +368,13 @@ def deposit_create(community=None):
         record=new_record(),
         files=dict(default_preview=None, entries=[], links={}),
         preselectedCommunity=community,
+        permissions=get_record_permissions(
+            [
+                "manage_files",
+                "delete_draft",
+                "manage_record_access",
+            ]
+        ),
     )
 
 
@@ -363,5 +393,12 @@ def deposit_edit(pid_value, draft=None, draft_files=None):
         record=record,
         files=files_dict,
         searchbar_config=dict(searchUrl=get_search_url()),
-        permissions=draft.has_permissions_to(["new_version", "delete_draft"]),
+        permissions=draft.has_permissions_to(
+            [
+                "new_version",
+                "delete_draft",
+                "manage_files",
+                "manage_record_access",
+            ]
+        ),
     )

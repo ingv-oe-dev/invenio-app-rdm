@@ -7,10 +7,11 @@
 
 import React from "react";
 import ReactDOM from "react-dom";
-import { getInputFromDOM } from "react-invenio-deposit";
+import { getInputFromDOM } from "@js/invenio_rdm_records/";
 import { RDMDepositForm } from "./RDMDepositForm";
-import { OverridableContext } from "react-overridable";
-import { overriddenComponents } from "./override";
+import { OverridableContext, overrideStore } from "react-overridable";
+
+const overriddenComponents = overrideStore.getAll();
 
 ReactDOM.render(
   <OverridableContext.Provider value={overriddenComponents}>
@@ -20,6 +21,7 @@ ReactDOM.render(
       files={getInputFromDOM("deposits-record-files")}
       config={getInputFromDOM("deposits-config")}
       permissions={getInputFromDOM("deposits-record-permissions")}
+      filesLocked={getInputFromDOM("deposits-record-locked-files")}
     />
   </OverridableContext.Provider>,
   document.getElementById("deposit-form")

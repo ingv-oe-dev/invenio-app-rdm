@@ -16,7 +16,7 @@ import _get from "lodash/get";
 import _truncate from "lodash/truncate";
 import React from "react";
 import Overridable from "react-overridable";
-import { withState } from "react-searchkit";
+import { withState, buildUID } from "react-searchkit";
 import {
   Button,
   Card,
@@ -31,10 +31,15 @@ import {
 } from "semantic-ui-react";
 import RecordsResultsListItem from "../components/RecordsResultsListItem";
 import PropTypes from "prop-types";
+import { Trans } from "react-i18next";
 
 export const RDMRecordResultsListItemWithState = withState(
-  ({ currentQueryState, result }) => (
-    <RecordsResultsListItem currentQueryState={currentQueryState} result={result} />
+  ({ currentQueryState, result, appName }) => (
+    <RecordsResultsListItem
+      currentQueryState={currentQueryState}
+      result={result}
+      appName={appName}
+    />
   )
 );
 
@@ -66,12 +71,16 @@ RDMRecordResultsGridItem.propTypes = {
   result: PropTypes.object.isRequired,
 };
 
-export const RDMRecordSearchBarContainer = () => {
+export const RDMRecordSearchBarContainer = ({ appName }) => {
   return (
-    <Overridable id="SearchApp.searchbar">
+    <Overridable id={buildUID("SearchApp.searchbar", "", appName)}>
       <SearchBar />
     </Overridable>
   );
+};
+
+RDMRecordSearchBarContainer.propTypes = {
+  appName: PropTypes.string.isRequired,
 };
 
 export const RDMRecordMultipleSearchBarElement = ({ queryString, onInputChange }) => {
@@ -121,10 +130,11 @@ export const RDMRecordSearchBarElement = withState(
           "icon": "search",
           "onClick": onBtnSearchClick,
           "className": "search",
-          "aria-label": "Search",
+          "aria-label": i18next.t("Search"),
         }}
         fluid
         placeholder={placeholder}
+        aria-label={placeholder}
         onChange={(event, { value }) => {
           onInputChange(value);
         }}
@@ -161,9 +171,9 @@ export const RDMToggleComponent = ({
       <Card.Content>
         <Checkbox
           toggle
-          label={label}
+          label={<label aria-hidden="true">{label}</label>}
           name="versions-toggle"
-          id="versions-toggle"
+          aria-label={label}
           onClick={onToggleClicked}
           checked={isChecked}
         />
@@ -194,8 +204,9 @@ export const RDMEmptyResults = ({ queryString, searchPath, resetQuery }) => {
       <Grid.Row centered>
         <Grid.Column width={12} textAlign="center">
           <Header as="h2">
-            {i18next.t("We couldn't find any matches for ")}
-            {(queryString && `'${queryString}'`) || i18next.t("your search")}
+            {i18next.t("We couldn't find any matches for {{- search}}", {
+              search: (queryString && `'${queryString}'`) || "your search",
+            })}
           </Header>
         </Grid.Column>
       </Grid.Row>
@@ -213,19 +224,23 @@ export const RDMEmptyResults = ({ queryString, searchPath, resetQuery }) => {
             <Header as="h3" size="small">
               {i18next.t("ProTip")}!
             </Header>
-            <p>
-              <a href={`${searchPath}?q=metadata.publication_date:[2017-01-01 TO *]`}>
-                metadata.publication_date:[2017-01-01 TO *]
-              </a>{" "}
-              {i18next.t("will give you all the publications from 2017 until today.")}
-            </p>
-            <p>
-              {i18next.t("For more tips, check out our ")}
-              <a href="/help/search" title={i18next.t("Search guide")}>
-                {i18next.t("search guide")}
-              </a>
-              {i18next.t(" for defining advanced search queries.")}
-            </p>
+            <Trans>
+              <p>
+                <a href={`${searchPath}?q=metadata.publication_date:[2017-01-01 TO *]`}>
+                  metadata.publication_date:[2017-01-01 TO *]
+                </a>{" "}
+                will give you all the publications from 2017 until today.
+              </p>
+            </Trans>
+            <Trans>
+              <p>
+                For more tips, check out our{" "}
+                <a href="/help/search" title={i18next.t("Search guide")}>
+                  search guide
+                </a>{" "}
+                for defining advanced search queries.
+              </p>
+            </Trans>
           </Segment>
         </Grid.Column>
       </Grid.Row>

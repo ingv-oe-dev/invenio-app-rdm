@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 #
-# Copyright (C) 2019-2020 CERN.
+# Copyright (C) 2019-2023 CERN.
 # Copyright (C) 2019-2020 Northwestern University.
 # Copyright (C) 2021 Graz University of Technology.
 # Copyright (C) 2022 KTH Royal Institute of Technology
+# Copyright (C) 2023 TU Wien
 #
 # Invenio App RDM is free software; you can redistribute it and/or modify it
 # under the terms of the MIT License; see LICENSE file for more details.
@@ -34,8 +35,36 @@ from datetime import datetime, timedelta
 
 from celery.schedules import crontab
 from flask_principal import Denial
+from flask_resources import HTTPJSONException, create_error_handler
 from invenio_access.permissions import any_user
-from invenio_rdm_records.config import RDM_NAMESPACES
+from invenio_communities.communities.resources.config import community_error_handlers
+from invenio_communities.notifications.builders import (
+    CommunityInvitationSubmittedNotificationBuilder,
+)
+from invenio_notifications.backends import EmailNotificationBackend
+from invenio_rdm_records.notifications.builders import (
+    CommunityInclusionSubmittedNotificationBuilder,
+)
+from invenio_rdm_records.requests.entity_resolvers import RDMRecordServiceResultResolver
+from invenio_rdm_records.resources.stats.event_builders import build_record_unique_id
+from invenio_rdm_records.services.communities.components import (
+    CommunityServiceComponents,
+)
+from invenio_rdm_records.services.errors import (
+    InvalidAccessRestrictions,
+    InvalidCommunityVisibility,
+)
+from invenio_rdm_records.services.permissions import RDMRequestsPermissionPolicy
+from invenio_rdm_records.services.stats import permissions_policy_lookup_factory
+from invenio_records_resources.references.entity_resolvers import ServiceResultResolver
+from invenio_requests.notifications.builders import (
+    CommentRequestEventCreateNotificationBuilder,
+)
+from invenio_requests.resources.requests.config import request_error_handlers
+from invenio_stats.aggregations import StatAggregator
+from invenio_stats.contrib.event_builders import build_file_unique_id
+from invenio_stats.processors import EventsIndexer, anonymize_user, flag_robots
+from invenio_stats.queries import TermsQuery
 from invenio_vocabularies.config import (
     VOCABULARIES_DATASTREAM_READERS,
     VOCABULARIES_DATASTREAM_TRANSFORMERS,
@@ -62,6 +91,9 @@ from invenio_vocabularies.contrib.names.datastreams import (
 from invenio_vocabularies.contrib.names.datastreams import (
     VOCABULARIES_DATASTREAM_WRITERS as NAMES_WRITERS,
 )
+
+from .theme.views import notification_settings
+from .users.schemas import NotificationsUserSchema, UserPreferencesNotificationsSchema
 
 # TODO: Remove when records-rest is out of communities and files
 RECORDS_REST_ENDPOINTS = {}
@@ -251,6 +283,10 @@ MUST ensure that NGINX (or other proxies) removes these headers again before
 sending the response to the client. Set to False, in case of doubt.
 """
 
+
+ACCOUNTS_USER_PREFERENCES_SCHEMA = UserPreferencesNotificationsSchema()
+"""The schema to use for validation of the user preferences."""
+
 # Invenio-Security-Invenio
 # ========================
 
@@ -313,6 +349,32 @@ CELERY_BEAT_SCHEDULE = {
         "task": "invenio_app_rdm.tasks.file_integrity_report",
         "schedule": crontab(minute=0, hour=7),  # Every day at 07:00 UTC
     },
+    # indexing of statistics events & aggregations
+    "stats-process-events": {
+        "task": "invenio_stats.tasks.process_events",
+        "schedule": timedelta(minutes=30),
+        "args": [("record-view", "file-download")],
+    },
+    "stats-aggregate-events": {
+        "task": "invenio_stats.tasks.aggregate_events",
+        "schedule": timedelta(hours=1),
+        "args": [
+            (
+                "record-view-agg",
+                "file-download-agg",
+            )
+        ],
+    },
+    # Invenio communities provides some caching that has the potential to be never removed,
+    # therefore, we need a cronjob to ensure that at least once per day we clear the cache
+    "clear-cache": {
+        "task": "invenio_communities.tasks.clear_cache",
+        "schedule": crontab(minute=0, hour=1),  # Every day at 01:00 UTC
+    },
+    "clean-access-request-tokens": {
+        "task": "invenio_rdm_records.requests.access.tasks.clean_expired_request_access_tokens",
+        "schedule": crontab(minute=4, hour=0),
+    },
     "ts_loader": {
         "task": "oedatarep_ts_loader.services.tasks.register_ts",
         "schedule": timedelta(hours=6),
@@ -331,7 +393,7 @@ CELERY_RESULT_BACKEND = "redis://localhost:6379/2"
 # See https://flask-sqlalchemy.palletsprojects.com/en/2.x/config/
 
 SQLALCHEMY_DATABASE_URI = (
-    "postgresql+psycopg2://invenio-app-rdm:invenio-app-rdm@localhost/" "invenio-app-rdm"
+    "postgresql+psycopg2://invenio-app-rdm:invenio-app-rdm@localhost/invenio-app-rdm"
 )
 """Database URI including user and password.
 
@@ -455,13 +517,23 @@ OAISERVER_METADATA_FORMATS = {
     },
     "datacite": {
         "serializer": "invenio_rdm_records.oai:datacite_etree",
-        "schema": "http://schema.datacite.org/" "meta/nonexistant/nonexistant.xsd",
+        "schema": "http://schema.datacite.org/meta/nonexistant/nonexistant.xsd",
         "namespace": "http://datacite.org/schema/nonexistant",
     },
     "oai_datacite": {
         "serializer": ("invenio_rdm_records.oai:oai_datacite_etree"),
         "schema": "http://schema.datacite.org/oai/oai-1.1/oai.xsd",
         "namespace": "http://schema.datacite.org/oai/oai-1.1/",
+    },
+    "oai_marcxml": {
+        "serializer": "invenio_rdm_records.oai:oai_marcxml_etree",
+        "schema": "https://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd",
+        "namespace": "https://www.loc.gov/standards/marcxml/",
+    },
+    "oai_dcat": {
+        "serializer": "invenio_rdm_records.oai:oai_dcat_etree",
+        "schema": "http://schema.datacite.org/meta/kernel-4/metadata.xsd",
+        "namespace": "https://www.w3.org/ns/dcat",
     },
 }
 
@@ -520,7 +592,7 @@ SEARCH_HOSTS = [{"host": "localhost", "port": 9200}]
 # ===============
 # See https://invenio-indexer.readthedocs.io/en/latest/configuration.html
 
-INDEXER_DEFAULT_INDEX = "rdmrecords-records-record-v5.0.0"
+INDEXER_DEFAULT_INDEX = "rdmrecords-records-record-v6.0.0"
 """Default index to use if no schema is defined."""
 
 # Invenio-Base
@@ -588,11 +660,14 @@ APP_RDM_ROUTES = {
     "index": "/",
     "robots": "/robots.txt",
     "help_search": "/help/search",
+    "help_statistics": "/help/statistics",
+    "help_versioning": "/help/versioning",
     "record_search": "/search",
     "record_detail": "/records/<pid_value>",
     "record_export": "/records/<pid_value>/export/<export_format>",
     "record_file_preview": "/records/<pid_value>/preview/<path:filename>",
     "record_file_download": "/records/<pid_value>/files/<path:filename>",
+    "record_media_file_download": "/records/<pid_value>/media-files/<path:filename>",
     "record_from_pid": "/<any({schemes}):pid_scheme>/<path:pid_value>",
     "record_latest": "/records/<pid_value>/latest",
     "dashboard_home": "/me",
@@ -604,42 +679,94 @@ APP_RDM_RECORD_EXPORTERS = {
     "json": {
         "name": _("JSON"),
         "serializer": ("flask_resources.serializers:JSONSerializer"),
+        "params": {"options": {"indent": 2, "sort_keys": True}},
         "content-type": "application/json",
         "filename": "{id}.json",
     },
     "csl": {
         "name": _("CSL"),
-        "serializer": (
-            "invenio_rdm_records.resources.serializers:" "CSLJSONSerializer"
-        ),
+        "serializer": ("invenio_rdm_records.resources.serializers:CSLJSONSerializer"),
+        "params": {"options": {"indent": 2, "sort_keys": True}},
         "content-type": "application/vnd.citationstyles.csl+json",
         "filename": "{id}.json",
     },
     "datacite-json": {
         "name": _("DataCite JSON"),
         "serializer": (
-            "invenio_rdm_records.resources.serializers:" "DataCite43JSONSerializer"
+            "invenio_rdm_records.resources.serializers:DataCite43JSONSerializer"
         ),
+        "params": {"options": {"indent": 2, "sort_keys": True}},
         "content-type": "application/vnd.datacite.datacite+json",
         "filename": "{id}.json",
     },
     "datacite-xml": {
         "name": _("DataCite XML"),
         "serializer": (
-            "invenio_rdm_records.resources.serializers:" "DataCite43XMLSerializer"
+            "invenio_rdm_records.resources.serializers:DataCite43XMLSerializer"
         ),
+        "params": {},
         "content-type": "application/vnd.datacite.datacite+xml",
         "filename": "{id}.xml",
     },
     "dublincore": {
         "name": _("Dublin Core XML"),
         "serializer": (
-            "invenio_rdm_records.resources.serializers:" "DublinCoreXMLSerializer"
+            "invenio_rdm_records.resources.serializers:DublinCoreXMLSerializer"
         ),
+        "params": {},
         "content-type": "application/x-dc+xml",
         "filename": "{id}.xml",
     },
+    "marcxml": {
+        "name": _("MARCXML"),
+        "serializer": ("invenio_rdm_records.resources.serializers:MARCXMLSerializer"),
+        "params": {},
+        "content-type": "application/marcxml+xml",
+        "filename": "{id}.xml",
+    },
+    "bibtex": {
+        "name": _("BibTeX"),
+        "serializer": ("invenio_rdm_records.resources.serializers:" "BibtexSerializer"),
+        "params": {},
+        "content-type": "application/x-bibtex",
+        "filename": "{id}.bib",
+    },
+    "GeoJSON": {
+        "name": _("GeoJSON"),
+        "serializer": ("invenio_rdm_records.resources.serializers:GeoJSONSerializer"),
+        "params": {"options": {"indent": 2, "sort_keys": True}},
+        "content-type": "application/vnd.geojson+json",
+        "filename": "{id}.geojson",
+    },
+    "DCAT-AP": {
+        "name": _("DCAT"),
+        "serializer": "invenio_rdm_records.resources.serializers:DCATSerializer",
+        "params": {},
+        "content-type": "application/dcat+xml",
+        "filename": "{id}.xml",
+    },
 }
+
+APP_RDM_RECORD_LANDING_PAGE_EXTERNAL_LINKS = []
+""" Default format used for adding badges to a record.
+
+Make sure the 'render' field points to a valid render function in invenio_app_rdm.records_ui.utils.
+Example implementation can also be found in invenio_app_rdm.records_ui.utils.
+
+APP_RDM_RECORD_LANDING_PAGE_EXTERNAL_LINKS = [
+    {
+        "id": "github",
+        "render": github_link_render,
+    },
+    {
+        "id": "openaire",
+        "render": openaire_link_render,
+    },
+}
+
+def github_link_render(record):
+    ...
+"""
 
 APP_RDM_RECORDS_EXPORT_URL = "/records/<pid_value>/export/<export_format>"
 
@@ -698,10 +825,15 @@ APP_RDM_DETAIL_SIDE_BAR_TEMPLATES = [
     "invenio_app_rdm/records/details/side_bar/cover.html",
     "invenio_app_rdm/records/details/side_bar/metrics.html",
     "invenio_app_rdm/records/details/side_bar/versions.html",
+    "invenio_app_rdm/records/details/side_bar/external_resources.html",
+    "invenio_app_rdm/records/details/side_bar/communities.html",
     "invenio_app_rdm/records/details/side_bar/keywords_subjects.html",
     "invenio_app_rdm/records/details/side_bar/details.html",
+    "invenio_app_rdm/records/details/side_bar/locations.html",
     "invenio_app_rdm/records/details/side_bar/licenses.html",
+    "invenio_app_rdm/records/details/side_bar/citations.html",
     "invenio_app_rdm/records/details/side_bar/export.html",
+    "invenio_app_rdm/records/details/side_bar/technical_metadata.html",
 ]
 """Template names for detail view sidebar components"""
 
@@ -716,6 +848,27 @@ APP_RDM_FILES_INTEGRITY_REPORT_SUBJECT = "Files integrity report"
 APP_RDM_ADMIN_EMAIL_RECIPIENT = "info@inveniosoftware.org"
 """Admin e-mail"""
 
+# Invenio-Communities
+# ===================
+
+COMMUNITIES_SERVICE_COMPONENTS = CommunityServiceComponents
+
+COMMUNITIES_ERROR_HANDLERS = {
+    **community_error_handlers,
+    InvalidCommunityVisibility: create_error_handler(
+        lambda e: HTTPJSONException(
+            code=400,
+            description=str(e),
+        )
+    ),
+}
+
+COMMUNITIES_RECORDS_SEARCH = {
+    "facets": ["access_status", "resource_type", "language"],
+    "sort": ["bestmatch", "newest", "oldest", "version"],
+}
+"""Community requests search configuration (i.e list of community requests)"""
+
 # Invenio-RDM-Records
 # ===================
 
@@ -728,11 +881,6 @@ RDM_REQUESTS_ROUTES = {
 RDM_COMMUNITIES_ROUTES = {
     "community-detail": "/communities/<pid_value>",
 }
-COMMUNITIES_RECORDS_SEARCH = {
-    "facets": ["access_status", "resource_type", "language"],
-    "sort": ["bestmatch", "newest", "oldest", "version"],
-}
-"""Community requests search configuration (i.e list of community requests)"""
 
 RDM_SEARCH_USER_COMMUNITIES = {
     "facets": ["visibility", "type"],
@@ -775,7 +923,7 @@ IIIF_API_DECORATOR_HANDLER = None
 # See https://github.com/inveniosoftware/invenio-previewer/blob/master/invenio_previewer/config.py  # noqa
 
 PREVIEWER_PREFERENCE = [
-    "csv_dthreejs",
+    "csv_papaparsejs",
     "iiif_simple",
     "simple_image",
     "json_prismjs",
@@ -826,3 +974,231 @@ PAGES_TEMPLATES = [
     ("invenio_app_rdm/default_static_page.html", "Default"),
 ]
 """List of available templates for pages."""
+
+# Invenio-Stats
+# =============
+# See https://invenio-stats.readthedocs.io/en/latest/configuration.html
+
+STATS_EVENTS = {
+    "file-download": {
+        "templates": "invenio_rdm_records.records.stats.templates.events.file_download",
+        "event_builders": [
+            "invenio_rdm_records.resources.stats.file_download_event_builder",
+            "invenio_rdm_records.resources.stats.check_if_via_api",
+        ],
+        "cls": EventsIndexer,
+        "params": {
+            "preprocessors": [flag_robots, anonymize_user, build_file_unique_id]
+        },
+    },
+    "record-view": {
+        "templates": "invenio_rdm_records.records.stats.templates.events.record_view",
+        "event_builders": [
+            "invenio_rdm_records.resources.stats.record_view_event_builder",
+            "invenio_rdm_records.resources.stats.check_if_via_api",
+            "invenio_rdm_records.resources.stats.drop_if_via_api",
+        ],
+        "cls": EventsIndexer,
+        "params": {
+            "preprocessors": [flag_robots, anonymize_user, build_record_unique_id],
+        },
+    },
+}
+
+STATS_AGGREGATIONS = {
+    "file-download-agg": {
+        "templates": "invenio_rdm_records.records.stats.templates.aggregations.aggr_file_download",
+        "cls": StatAggregator,
+        "params": {
+            "event": "file-download",
+            "field": "unique_id",
+            "interval": "day",
+            "index_interval": "month",
+            "copy_fields": {
+                "file_id": "file_id",
+                "file_key": "file_key",
+                "bucket_id": "bucket_id",
+                "recid": "recid",
+                "parent_recid": "parent_recid",
+            },
+            "metric_fields": {
+                "unique_count": (
+                    "cardinality",
+                    "unique_session_id",
+                    {"precision_threshold": 1000},
+                ),
+                "volume": ("sum", "size", {}),
+            },
+        },
+    },
+    "record-view-agg": {
+        "templates": "invenio_rdm_records.records.stats.templates.aggregations.aggr_record_view",
+        "cls": StatAggregator,
+        "params": {
+            "event": "record-view",
+            "field": "unique_id",
+            "interval": "day",
+            "index_interval": "month",
+            "copy_fields": {
+                "recid": "recid",
+                "parent_recid": "parent_recid",
+                "via_api": "via_api",
+            },
+            "metric_fields": {
+                "unique_count": (
+                    "cardinality",
+                    "unique_session_id",
+                    {"precision_threshold": 1000},
+                ),
+            },
+            "query_modifiers": [lambda query, **_: query.filter("term", via_api=False)],
+        },
+    },
+}
+
+STATS_QUERIES = {
+    "record-view": {
+        "cls": TermsQuery,
+        "permission_factory": None,
+        "params": {
+            "index": "stats-record-view",
+            "doc_type": "record-view-day-aggregation",
+            "copy_fields": {
+                "recid": "recid",
+                "parent_recid": "parent_recid",
+            },
+            "query_modifiers": [],
+            "required_filters": {
+                "recid": "recid",
+            },
+            "metric_fields": {
+                "views": ("sum", "count", {}),
+                "unique_views": ("sum", "unique_count", {}),
+            },
+        },
+    },
+    "record-view-all-versions": {
+        "cls": TermsQuery,
+        "permission_factory": None,
+        "params": {
+            "index": "stats-record-view",
+            "doc_type": "record-view-day-aggregation",
+            "copy_fields": {
+                "parent_recid": "parent_recid",
+            },
+            "query_modifiers": [],
+            "required_filters": {
+                "parent_recid": "parent_recid",
+            },
+            "metric_fields": {
+                "views": ("sum", "count", {}),
+                "unique_views": ("sum", "unique_count", {}),
+            },
+        },
+    },
+    "record-download": {
+        "cls": TermsQuery,
+        "permission_factory": None,
+        "params": {
+            "index": "stats-file-download",
+            "doc_type": "file-download-day-aggregation",
+            "copy_fields": {
+                "recid": "recid",
+                "parent_recid": "parent_recid",
+            },
+            "query_modifiers": [],
+            "required_filters": {
+                "recid": "recid",
+            },
+            "metric_fields": {
+                "downloads": ("sum", "count", {}),
+                "unique_downloads": ("sum", "unique_count", {}),
+                "data_volume": ("sum", "volume", {}),
+            },
+        },
+    },
+    "record-download-all-versions": {
+        "cls": TermsQuery,
+        "permission_factory": None,
+        "params": {
+            "index": "stats-file-download",
+            "doc_type": "file-download-day-aggregation",
+            "copy_fields": {
+                "parent_recid": "parent_recid",
+            },
+            "query_modifiers": [],
+            "required_filters": {
+                "parent_recid": "parent_recid",
+            },
+            "metric_fields": {
+                "downloads": ("sum", "count", {}),
+                "unique_downloads": ("sum", "unique_count", {}),
+                "data_volume": ("sum", "volume", {}),
+            },
+        },
+    },
+}
+
+STATS_PERMISSION_FACTORY = permissions_policy_lookup_factory
+
+
+# Invenio-Notifications
+# =================
+# See https://github.com/inveniosoftware/invenio-notifications/blob/master/invenio_notifications/config.py  # noqa
+
+
+NOTIFICATIONS_BACKENDS = {
+    EmailNotificationBackend.id: EmailNotificationBackend(),
+}
+"""Notification backends."""
+
+
+NOTIFICATIONS_BUILDERS = {
+    CommunityInclusionSubmittedNotificationBuilder.type: CommunityInclusionSubmittedNotificationBuilder,
+    CommunityInvitationSubmittedNotificationBuilder.type: CommunityInvitationSubmittedNotificationBuilder,
+    CommentRequestEventCreateNotificationBuilder.type: CommentRequestEventCreateNotificationBuilder,
+}
+"""Notification builders."""
+
+
+NOTIFICATIONS_ENTITY_RESOLVERS = [
+    RDMRecordServiceResultResolver(),
+    ServiceResultResolver(service_id="users", type_key="user"),
+    ServiceResultResolver(service_id="users", type_key="email"),
+    ServiceResultResolver(service_id="communities", type_key="community"),
+    ServiceResultResolver(service_id="requests", type_key="request"),
+    ServiceResultResolver(service_id="request_events", type_key="request_event"),
+]
+"""List of entity resolvers used by notification builders."""
+
+NOTIFICATIONS_SETTINGS_VIEW_FUNCTION = notification_settings
+"""View function for notification settings."""
+
+
+# Invenio-Users-Resources
+# =================
+# See https://github.com/inveniosoftware/invenio-users-resources/blob/master/invenio_users_resources/config.py  # noqa
+
+
+USERS_RESOURCES_SERVICE_SCHEMA = NotificationsUserSchema
+"""Schema used by the users service."""
+
+
+# Invenio-Requests
+# =================
+# See https://github.com/inveniosoftware/invenio-requests/blob/master/invenio_requests/config.py  # noqa
+
+
+REQUESTS_PERMISSION_POLICY = RDMRequestsPermissionPolicy
+"""The requests permission policy, extended to work with guest access requests."""
+
+
+REQUESTS_ERROR_HANDLERS = {
+    **request_error_handlers,
+    InvalidAccessRestrictions: create_error_handler(
+        lambda e: HTTPJSONException(
+            code=400,
+            description=e.description,
+        )
+    ),
+}

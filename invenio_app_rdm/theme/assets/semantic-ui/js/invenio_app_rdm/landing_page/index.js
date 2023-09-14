@@ -2,13 +2,13 @@
 // Copyright (C) 2020-2021 CERN.
 // Copyright (C) 2020-2021 Northwestern University.
 // Copyright (C) 2021 Graz University of Technology.
+// Copyright (C) 2023 TU Wien.
 //
 // Invenio RDM Records is free software; you can redistribute it and/or modify it
 // under the terms of the MIT License; see LICENSE file for more details.
 
 import React from "react";
 import ReactDOM from "react-dom";
-
 import { RecordManagement } from "./RecordManagement";
 import { RecordVersionsList } from "./RecordVersionsList";
 import { RecordCitationField } from "./RecordCitationField";
@@ -16,6 +16,8 @@ import { ExportDropdown } from "./ExportDropdown";
 import { Plotly } from "./Plotly";
 import { LeafletMap } from "./LeafletMap";
 import { LeafletLocations } from "./LeafletLocations";
+import { CommunitiesManagement } from "./CommunitiesManagement";
+import { OverridableContext, overrideStore } from "react-overridable";
 
 const recordManagementAppDiv = document.getElementById("recordManagement");
 const recordManagementMobile = document.getElementById("recordManagementMobile");
@@ -26,6 +28,9 @@ const recordExportDownloadDiv = document.getElementById("recordExportDownload");
 const recordPlotlyDiv = document.getElementById("recordPlotly");
 const recordLeafletDiv = document.getElementById("recordLeaflet");
 const leafletLocationsDiv = document.getElementById("leaflet-locations");
+const sidebarCommunitiesManageDiv = document.getElementById(
+  "sidebar-communities-manage"
+);
 
 if (recordManagementAppDiv) {
   renderRecordManagement(recordManagementAppDiv);
@@ -34,14 +39,20 @@ if (recordManagementAppDiv) {
 
 function renderRecordManagement(element) {
   ReactDOM.render(
-    <RecordManagement
-      record={JSON.parse(recordManagementAppDiv.dataset.record)}
-      permissions={JSON.parse(recordManagementAppDiv.dataset.permissions)}
-      isDraft={JSON.parse(recordManagementAppDiv.dataset.isDraft)}
-      isPreviewSubmissionRequest={JSON.parse(
-        recordManagementAppDiv.dataset.isPreviewSubmissionRequest
-      )}
-    />,
+    <OverridableContext.Provider value={overrideStore.getAll()}>
+      <RecordManagement
+        record={JSON.parse(recordManagementAppDiv.dataset.record)}
+        permissions={JSON.parse(recordManagementAppDiv.dataset.permissions)}
+        isDraft={JSON.parse(recordManagementAppDiv.dataset.isDraft)}
+        isPreviewSubmissionRequest={JSON.parse(
+          recordManagementAppDiv.dataset.isPreviewSubmissionRequest
+        )}
+        currentUserId={recordManagementAppDiv.dataset.currentUserId}
+        accessLinksSearchConfig={JSON.parse(
+          recordManagementAppDiv.dataset.accessLinksSearchConfig
+        )}
+      />
+    </OverridableContext.Provider>,
     element
   );
 }
@@ -71,6 +82,33 @@ if (recordExportDownloadDiv) {
   ReactDOM.render(
     <ExportDropdown formats={JSON.parse(recordExportDownloadDiv.dataset.formats)} />,
     recordExportDownloadDiv
+  );
+}
+
+if (sidebarCommunitiesManageDiv) {
+  const recordCommunitySearchConfig = JSON.parse(
+    sidebarCommunitiesManageDiv.dataset.recordCommunitySearchConfig
+  );
+  const pendingCommunitiesSearchConfig =
+    sidebarCommunitiesManageDiv.dataset.pendingCommunitiesSearchConfig;
+  ReactDOM.render(
+    <CommunitiesManagement
+      userCommunitiesMemberships={JSON.parse(
+        sidebarCommunitiesManageDiv.dataset.userCommunitiesMemberships
+      )}
+      recordCommunityEndpoint={
+        sidebarCommunitiesManageDiv.dataset.recordCommunityEndpoint
+      }
+      recordUserCommunitySearchConfig={JSON.parse(
+        sidebarCommunitiesManageDiv.dataset.recordUserCommunitySearchConfig
+      )}
+      canManageRecord={JSON.parse(sidebarCommunitiesManageDiv.dataset.canManageRecord)}
+      recordCommunitySearchConfig={recordCommunitySearchConfig}
+      permissions={JSON.parse(sidebarCommunitiesManageDiv.dataset.permissions)}
+      searchConfig={JSON.parse(pendingCommunitiesSearchConfig)}
+      record={JSON.parse(recordCitationAppDiv.dataset.record)}
+    />,
+    sidebarCommunitiesManageDiv
   );
 }
 
