@@ -100,16 +100,6 @@
   }
 
   .item {
-    &.community-item {
-      .header {
-        word-break: break-word;
-        .header-link {
-          @media all and (max-width: @largestMobileScreen) {
-            margin-top: 1rem;
-          }
-        }
-      }
-    }
 
     &.flex {
       display: flex !important;
@@ -156,7 +146,7 @@
 .item {
 
   &.align-no-checkbox {
-    margin-left: @defaultMargin / 2 + @checkboxSize;
+    margin-left: (@defaultMargin / 2) + @checkboxSize;
   }
 
   .ui.fitted.checkbox {

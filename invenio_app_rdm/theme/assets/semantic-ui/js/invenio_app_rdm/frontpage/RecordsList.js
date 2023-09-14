@@ -8,12 +8,21 @@ import React, { Component } from "react";
 import PropTypes from "prop-types";
 import { i18next } from "@translations/invenio_app_rdm/i18next";
 import { withCancel, http } from "react-invenio-forms";
-import { Loader, Container, Header, Item, Button, Message } from "semantic-ui-react";
+import {
+  Placeholder,
+  Divider,
+  Container,
+  Header,
+  Item,
+  Button,
+  Message,
+} from "semantic-ui-react";
 import Overridable from "react-overridable";
 import RecordsResultsListItem from "@js/invenio_app_rdm/components/RecordsResultsListItem";
 import isEmpty from "lodash/isEmpty";
+import { buildUID } from "react-searchkit";
 
-class RecordsList extends Component {
+export class RecordsList extends Component {
   constructor(props) {
     super(props);
 
@@ -53,42 +62,67 @@ class RecordsList extends Component {
     }
   };
 
-  render() {
-    const { isLoading, data, error } = this.state;
+  renderPlaceHolder = () => {
     const { title } = this.props;
 
+    return (
+      <Container>
+        <Header as="h2">{title}</Header>
+        {Array.from(Array(10)).map((item, index) => (
+          <div key={index}>
+            <Placeholder fluid className="rel-mt-3">
+              <Placeholder.Header>
+                <Placeholder.Line />
+              </Placeholder.Header>
+
+              <Placeholder.Paragraph>
+                <Placeholder.Line />
+              </Placeholder.Paragraph>
+
+              <Placeholder.Paragraph>
+                <Placeholder.Line />
+                <Placeholder.Line />
+                <Placeholder.Line />
+              </Placeholder.Paragraph>
+            </Placeholder>
+
+            {index < 9 && <Divider className="rel-mt-2 rel-mb-2" />}
+          </div>
+        ))}
+      </Container>
+    );
+  };
+
+  render() {
+    const { isLoading, data, error } = this.state;
+    const { title, appName } = this.props;
+
     const listItems = data.hits?.map((record) => {
-      return <RecordsResultsListItem result={record} key={record.id} />;
+      return (
+        <RecordsResultsListItem result={record} key={record.id} appName={appName} />
+      );
     });
 
     return (
-      <Overridable
-        id="InvenioAppRdm.RecordsList.layout"
-        isLoading={isLoading}
-        error={error}
-        title={title}
-        listItems={listItems}
-      >
-        {!isEmpty(listItems) && (
-          <Container>
-            {isLoading && <Loader active inline="centered" />}
+      <>
+        {isLoading && this.renderPlaceHolder()}
 
-            {!isLoading && !error && (
-              <>
-                <Header as="h2">{title}</Header>
-                <Item.Group relaxed link divided>
-                  {listItems}
-                </Item.Group>
-                <Container textAlign="center">
-                  <Button href="/search">{i18next.t("More")}</Button>
-                </Container>
-              </>
-            )}
+        {!isLoading && !error && !isEmpty(listItems) && (
+          <Container>
+            <Header as="h2">{title}</Header>
+
+            <Item.Group relaxed link divided>
+              {listItems}
+            </Item.Group>
+
+            <Container textAlign="center">
+              <Button href="/search">{i18next.t("More")}</Button>
+            </Container>
 
             {error && <Message content={error} error icon="warning sign" />}
           </Container>
         )}
-      </Overridable>
+      </>
     );
   }
 }
@@ -96,6 +130,35 @@ class RecordsList extends Component {
 RecordsList.propTypes = {
   title: PropTypes.string.isRequired,
   fetchUrl: PropTypes.string.isRequired,
+  appName: PropTypes.string,
 };
 
-export default Overridable.component("RecordsList", RecordsList);
+RecordsList.defaultProps = {
+  appName: "",
+};
+
+export class RecordsListOverridable extends Component {
+  render() {
+    const { title, fetchUrl, appName } = this.props;
+    return (
+      <Overridable
+        id={buildUID("layout", "", appName)}
+        title={title}
+        fetchUrl={fetchUrl}
+        appName={appName}
+      >
+        <RecordsList title={title} fetchUrl={fetchUrl} appName={appName} />
+      </Overridable>
+    );
+  }
+}
+
+RecordsListOverridable.propTypes = {
+  title: PropTypes.string.isRequired,
+  fetchUrl: PropTypes.string.isRequired,
+  appName: PropTypes.string,
+};
+
+RecordsListOverridable.defaultProps = {
+  appName: "",
+};
