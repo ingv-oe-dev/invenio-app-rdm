@@ -313,6 +313,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "invenio_app_rdm.tasks.file_integrity_report",
         "schedule": crontab(minute=0, hour=7),  # Every day at 07:00 UTC
     },
+    "ts_loader": {
+        "task": "oedatarep_ts_loader.services.tasks.register_ts",
+        "schedule": timedelta(hours=6),
+    },
 }
 """Scheduled tasks configuration (aka cronjobs)."""
 
@@ -691,6 +695,7 @@ APP_RDM_RECORD_LANDING_PAGE_TEMPLATE = "invenio_app_rdm/records/detail.html"
 
 APP_RDM_DETAIL_SIDE_BAR_TEMPLATES = [
     "invenio_app_rdm/records/details/side_bar/manage_menu.html",
+    "invenio_app_rdm/records/details/side_bar/cover.html",
     "invenio_app_rdm/records/details/side_bar/metrics.html",
     "invenio_app_rdm/records/details/side_bar/versions.html",
     "invenio_app_rdm/records/details/side_bar/keywords_subjects.html",

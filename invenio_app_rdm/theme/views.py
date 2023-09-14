@@ -13,7 +13,8 @@ from flask import Blueprint, current_app, render_template
 from flask_babelex import get_locale
 from flask_babelex import lazy_gettext as _
 from flask_menu import current_menu
-
+from invenio_rdm_records.resources.serializers import UIJSONSerializer
+from .search import FrontpageRecordsSearch
 
 #
 # Registration
@@ -59,8 +60,10 @@ def create_blueprint(app):
 #
 def index():
     """Frontpage."""
+    records = FrontpageRecordsSearch()[:10].sort("-created").execute()
     return render_template(
         current_app.config["THEME_FRONTPAGE_TEMPLATE"],
+        records=records_serializer(records),
         show_intro_section=current_app.config["THEME_SHOW_FRONTPAGE_INTRO_SECTION"],
     )
 
@@ -74,9 +77,16 @@ def help_search():
     """Search help guide."""
     # Default to rendering english page if locale page not found.
     locale = get_locale()
-    return render_template(
-        [
-            f"invenio_app_rdm/help/search.{locale}.html",
-            "invenio_app_rdm/help/search.en.html",
-        ]
-    )
+    return render_template([
+        f"invenio_app_rdm/help/search.{locale}.html",
+        "invenio_app_rdm/help/search.en.html",
+    ])
+
+def records_serializer(records=None):
+    """Serialize list of records."""
+    record_list = []
+    for record in records:
+        record_list.append(
+            UIJSONSerializer().dump_obj(record.to_dict())
+        )
+    return record_list

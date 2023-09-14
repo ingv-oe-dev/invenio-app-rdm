@@ -13,6 +13,9 @@ import { RecordManagement } from "./RecordManagement";
 import { RecordVersionsList } from "./RecordVersionsList";
 import { RecordCitationField } from "./RecordCitationField";
 import { ExportDropdown } from "./ExportDropdown";
+import { Plotly } from "./Plotly";
+import { LeafletMap } from "./LeafletMap";
+import { LeafletLocations } from "./LeafletLocations";
 
 const recordManagementAppDiv = document.getElementById("recordManagement");
 const recordManagementMobile = document.getElementById("recordManagementMobile");
@@ -20,6 +23,9 @@ const recordManagementMobile = document.getElementById("recordManagementMobile")
 const recordVersionsAppDiv = document.getElementById("recordVersions");
 const recordCitationAppDiv = document.getElementById("recordCitation");
 const recordExportDownloadDiv = document.getElementById("recordExportDownload");
+const recordPlotlyDiv = document.getElementById("recordPlotly");
+const recordLeafletDiv = document.getElementById("recordLeaflet");
+const leafletLocationsDiv = document.getElementById("leaflet-locations");
 
 if (recordManagementAppDiv) {
   renderRecordManagement(recordManagementAppDiv);
@@ -65,5 +71,30 @@ if (recordExportDownloadDiv) {
   ReactDOM.render(
     <ExportDropdown formats={JSON.parse(recordExportDownloadDiv.dataset.formats)} />,
     recordExportDownloadDiv
+  );
+}
+
+if (recordPlotlyDiv) {
+  ReactDOM.render(
+    <Plotly
+      chartresource={JSON.parse(recordPlotlyDiv.dataset.chartresource)}
+      tsdtoken={recordPlotlyDiv.dataset.tsdtoken}
+      tsdsrvurl={recordPlotlyDiv.dataset.tsdsrvurl}
+    />,
+    recordPlotlyDiv
+  );
+}
+
+if (recordLeafletDiv) {
+  ReactDOM.render(
+    <LeafletMap wmsresource={JSON.parse(recordLeafletDiv.dataset.wmsresource)} />,
+    recordLeafletDiv
+  );
+}
+
+if (leafletLocationsDiv) {
+  ReactDOM.render(
+    <LeafletLocations locations={JSON.parse(leafletLocationsDiv.dataset.locations)} />,
+    leafletLocationsDiv
   );
 }
